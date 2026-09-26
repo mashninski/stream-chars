@@ -12,9 +12,11 @@
   button { font: inherit; padding: 6px 12px; cursor: pointer; }
   #status { font-size: 14px; margin-bottom: 16px; }
   #status.off { color: #b00; }
-  #list { list-style: none; padding: 0; }
-  #list li { padding: 4px 8px; cursor: pointer; border-radius: 4px; }
-  #list li:hover { background: #ddd; }
+  input[type=number] { flex: 0 0 80px; }
+  h2 { font-size: 16px; }
+  ul { list-style: none; padding: 0; }
+  ul li { padding: 4px 8px; cursor: pointer; border-radius: 4px; }
+  ul li:hover { background: #ddd; }
   .character { color: #666; }
   .empty { color: #777; }
 </style>
@@ -34,8 +36,17 @@
   <select id="character"></select>
   <button data-action="character">Змяніць персанажа</button>
 </div>
-<h2 style="font-size:16px">Гледачы на экране: <span id="count">0</span></h2>
+<div class="row">
+  <input id="channel" placeholder="Канал-рэйдэр" maxlength="25">
+  <input id="raidCount" type="number" min="1" value="5" title="Колькі гледачоў у рэйдзе">
+  <button id="raid">Рэйд</button>
+</div>
+<h2>Гледачы на экране: <span id="count">0</span></h2>
 <ul id="list"></ul>
+<h2>У чарзе: <span id="queueCount">0</span></h2>
+<ul id="queue"></ul>
+<h2>Рэйд на экране: <span id="raidersCount">0</span></h2>
+<ul id="raiders"></ul>
 <script type="module" src="/js/test.js"></script>
 </body>
 </html>

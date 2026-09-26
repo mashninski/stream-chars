@@ -1,25 +1,89 @@
-// Список зрителей, у которых сейчас есть персонаж на экране.
-// Источник событий любой: тестовая панель сейчас, Twitch в задаче 4.
-// Сервер подписывается на события и пересылает их оверлею.
+// Кто сейчас на экране, кто ждёт в очереди, рейд. Сервер решает — оверлей только рисует.
+// Источник событий любой: тестовая панель сейчас, Twitch в задачах 4–5.
+// Сервер подписывается на события и пересылает их оверлею:
+// - 'join' (viewer, entrance) — персонаж выходит на экран, entrance — способ появления;
+// - 'leave' (viewer) — уходит с экрана;
+// - 'queue' (список) — очередь изменилась;
+// - 'character', 'unknownCharacter', 'message' — см. методы.
 import { EventEmitter } from 'node:events';
 
+// Случайное имя по весам: { edge: 1, poof: 2 } → 'poof' в два раза чаще.
+function weighted(weights, rand) {
+  const entries = Object.entries(weights ?? {}).filter(([, w]) => typeof w === 'number' && w > 0);
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let r = rand() * total;
+  for (const [name, w] of entries) {
+    if ((r -= w) < 0) return name;
+  }
+  return entries.at(-1)?.[0] ?? 'poof';
+}
+
 export class Viewers extends EventEmitter {
-  #byId = new Map();
+  #onScreen = new Map();
+  // Map хранит порядок добавления — первый добавленный выходит первым.
+  #queue = new Map();
+  #raiders = new Map();
+  #raidTimer = null;
+  #raidCount = 0;
+  #lastRaidAt = -Infinity;
   #store;
+  #opts;
 
   // store — закрепление зритель → персонаж (store.js).
-  constructor(store) {
+  // options: maxOnScreen, entrances (веса способов появления), raid { maxCount, staySeconds, parachuteWindowSeconds },
+  // characters() — имена персонажей каталога (для рейдеров); now, rand, setTimeout, clearTimeout — подменяются в проверке.
+  constructor(store, options = {}) {
     super();
     this.#store = store;
+    this.#opts = {
+      maxOnScreen: 30,
+      entrances: { edge: 1, poof: 1, fall: 1 },
+      characters: () => [],
+      now: Date.now,
+      rand: Math.random,
+      setTimeout,
+      clearTimeout,
+      ...options,
+      raid: { maxCount: 15, staySeconds: 300, parachuteWindowSeconds: 300, ...options.raid },
+    };
+  }
+
+  // Способ появления: в окне после рейда — парашют, иначе случайный по весам из config.json.
+  #entrance() {
+    const { now, raid, entrances, rand } = this.#opts;
+    if (now() - this.#lastRaidAt < raid.parachuteWindowSeconds * 1000) return 'parachute';
+    return weighted(entrances, rand);
+  }
+
+  #show(viewer) {
+    this.#onScreen.set(viewer.id, viewer);
+    this.emit('join', viewer, this.#entrance());
+  }
+
+  // Освободилось место — выходят первые из очереди.
+  #promote() {
+    let moved = false;
+    while (this.#onScreen.size < this.#opts.maxOnScreen && this.#queue.size) {
+      const [id, viewer] = this.#queue.entries().next().value;
+      this.#queue.delete(id);
+      this.#show(viewer);
+      moved = true;
+    }
+    if (moved) this.emit('queue', this.queue());
   }
 
   // viewer = { id, name }. id — ключ (в задаче 4 станет user_id Twitch), name — ник как есть.
-  // На экран уходит { id, name, character }; character = null, если каталог пуст.
+  // Место на экране есть — выходит; нет — в очередь. Уже на экране или в очереди — false.
+  // character = null, если каталог пуст.
   join({ id, name }) {
-    if (this.#byId.has(id)) return false;
+    if (this.#onScreen.has(id) || this.#queue.has(id)) return false;
     const viewer = { id, name, character: this.#store.characterFor({ id, name }) };
-    this.#byId.set(id, viewer);
-    this.emit('join', viewer);
+    if (this.#onScreen.size < this.#opts.maxOnScreen) {
+      this.#show(viewer);
+    } else {
+      this.#queue.set(id, viewer);
+      this.emit('queue', this.queue());
+    }
     return true;
   }
 
@@ -32,7 +96,12 @@ export class Viewers extends EventEmitter {
       this.emit('unknownCharacter', { id, name }, characterName);
       return false;
     }
-    const viewer = this.#byId.get(id);
+    const queued = this.#queue.get(id);
+    if (queued) {
+      queued.character = character;
+      this.emit('queue', this.queue());
+    }
+    const viewer = this.#onScreen.get(id);
     if (viewer && viewer.character !== character) {
       viewer.character = character;
       this.emit('character', viewer);
@@ -40,22 +109,67 @@ export class Viewers extends EventEmitter {
     return true;
   }
 
+  // Ушёл из очереди — просто убираем; ушёл с экрана — на его место первый из очереди.
   leave(id) {
-    const viewer = this.#byId.get(id);
+    if (this.#queue.delete(id)) {
+      this.emit('queue', this.queue());
+      return true;
+    }
+    const viewer = this.#onScreen.get(id);
     if (!viewer) return false;
-    this.#byId.delete(id);
+    this.#onScreen.delete(id);
     this.emit('leave', viewer);
+    this.#promote();
     return true;
   }
 
+  // Реакция только у тех, кто на экране.
   message(id, text) {
-    const viewer = this.#byId.get(id);
+    const viewer = this.#onScreen.get(id);
     if (!viewer) return false;
     this.emit('message', viewer, text);
     return true;
   }
 
+  // Рейд: канал-рейдер и число зрителей. Спускаются min(count, raid.maxCount) безымянных персонажей
+  // со случайными дизайнами, над каждым — ник канала. В лимит зрителей не входят, в store не пишутся.
+  // Новый рейд, пока гуляют прошлые рейдеры, — прошлые уходят: на экране не больше raid.maxCount рейдеров.
+  // Возвращает, сколько спустилось.
+  raid(channel, count) {
+    const { raid, characters, rand, now } = this.#opts;
+    const n = Math.min(Math.floor(count), raid.maxCount);
+    if (!channel || !(n > 0)) return 0;
+    this.#endRaid();
+    this.#lastRaidAt = now();
+    const raidId = ++this.#raidCount;
+    const names = characters();
+    for (let i = 0; i < n; i++) {
+      const character = names.length ? names[Math.floor(rand() * names.length)] : null;
+      const raider = { id: `raid-${raidId}-${i}`, name: channel, character, raider: true };
+      this.#raiders.set(raider.id, raider);
+      this.emit('join', raider, 'parachute');
+    }
+    this.#raidTimer = this.#opts.setTimeout(() => this.#endRaid(), raid.staySeconds * 1000);
+    return n;
+  }
+
+  #endRaid() {
+    if (this.#raidTimer) this.#opts.clearTimeout(this.#raidTimer);
+    this.#raidTimer = null;
+    for (const raider of this.#raiders.values()) this.emit('leave', raider);
+    this.#raiders.clear();
+  }
+
+  get raidStaySeconds() {
+    return this.#opts.raid.staySeconds;
+  }
+
+  // Все, кто на экране: зрители и рейдеры (у рейдера raider: true).
   list() {
-    return [...this.#byId.values()];
+    return [...this.#onScreen.values(), ...this.#raiders.values()];
+  }
+
+  queue() {
+    return [...this.#queue.values()];
   }
 }

@@ -15,7 +15,8 @@
     "jump": {
       "row": 2,
       "frames": 2,
-      "fps": 8
+      "fps": 8,
+      "loop": false
     },
     "fall": {
       "row": 3,
@@ -25,12 +26,14 @@
     "land": {
       "row": 4,
       "frames": 2,
-      "fps": 10
+      "fps": 10,
+      "loop": false
     },
     "shake": {
       "row": 5,
       "frames": 4,
-      "fps": 16
+      "fps": 16,
+      "loop": false
     },
     "parachute": {
       "row": 6,

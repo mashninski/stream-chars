@@ -1,6 +1,16 @@
 {
   "port": 4700,
   "maxOnScreen": 30,
+  "entrances": {
+    "edge": 1,
+    "poof": 1,
+    "fall": 1
+  },
+  "raid": {
+    "maxCount": 15,
+    "staySeconds": 300,
+    "parachuteWindowSeconds": 300
+  },
   "overlay": {
     "width": 1920,
     "height": 1080,
@@ -12,6 +22,12 @@
     "scale": 3,
     "walkSpeed": 60,
     "walkDistance": [80, 400],
-    "idlePause": [2, 6]
+    "idlePause": [2, 6],
+    "jumpHeight": 40,
+    "jumpTime": 0.5,
+    "fallGravity": 1500,
+    "parachuteSpeed": 120,
+    "parachuteSpread": 500,
+    "poofTime": 0.6
   }
 }

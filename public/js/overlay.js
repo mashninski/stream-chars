@@ -19,18 +19,20 @@ function loadSprites(characters) {
   }
 }
 
-function randomX() {
-  const { left, right } = world.strip;
-  return left + Math.random() * (right - left);
+// Длина анимации персонажа в секундах — логике нужна, чтобы знать, когда кончилось приземление.
+function animLength(character, anim) {
+  const a = sprites.get(character)?.info.animations[anim];
+  return a ? a.frames / a.fps : undefined;
 }
 
-function add(viewer) {
+// entrance — способ появления, его выбирает программа; нет (восстановление списка) — стоит на месте.
+function add(viewer, entrance) {
   const actor = actors.get(viewer.id);
   if (actor) {
     actor.character = viewer.character;
     return actor.stay();
   }
-  actors.set(viewer.id, new Actor(viewer, world, randomX()));
+  actors.set(viewer.id, new Actor(viewer, world, { entrance, animLength }));
 }
 
 // Полный список от программы: при первом подключении, перезагрузке и переподключении.
@@ -50,14 +52,15 @@ connect((msg) => {
   } else if (!world) {
     return;
   } else if (msg.type === 'join') {
-    add(msg.viewer);
+    add(msg.viewer, msg.entrance);
   } else if (msg.type === 'leave') {
     actors.get(msg.id)?.leave();
   } else if (msg.type === 'character') {
     const actor = actors.get(msg.id);
     if (actor) actor.character = msg.character;
+  } else if (msg.type === 'message') {
+    actors.get(msg.id)?.react('jump');
   }
-  // message: реакция (прыжок) — задача 3.
 });
 
 let last = performance.now();

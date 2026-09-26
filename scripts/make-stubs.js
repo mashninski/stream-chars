@@ -248,6 +248,9 @@ function encodePng(width, height, pixels) {
 
 // ---------- лист ----------
 
+// Одноразовые анимации: проигрываются один раз и держат последний кадр.
+const ONCE = new Set(['jump', 'land', 'shake']);
+
 const cols = Math.max(...ANIMS.map(([, , frames]) => frames.length));
 const sheetW = cols * F;
 const sheetH = ANIMS.length * F;
@@ -257,6 +260,7 @@ for (const [name, c] of Object.entries(CHARACTERS)) {
   const animations = {};
   ANIMS.forEach(([anim, fps, poses], row) => {
     animations[anim] = { row, frames: poses.length, fps };
+    if (ONCE.has(anim)) animations[anim].loop = false;
     poses.forEach((pose, col) => {
       const frame = drawFigure(c, pose);
       for (let y = 0; y < F; y++) {

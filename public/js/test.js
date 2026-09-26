@@ -1,36 +1,50 @@
-// Тестовая панель: шлёт программе команды join/leave/message/смена персонажа и показывает текущий список.
+// Тестовая панель: шлёт программе команды join/leave/message/смена персонажа/рейд
+// и показывает, кто на экране, кто в очереди и сколько рейдеров.
 import { connect } from './connection.js';
 
 const nameInput = document.getElementById('name');
 const characterSelect = document.getElementById('character');
-const list = document.getElementById('list');
-const count = document.getElementById('count');
+const channelInput = document.getElementById('channel');
+const raidCount = document.getElementById('raidCount');
 const status = document.getElementById('status');
-const viewers = new Map();
+// На экране: зрители и рейдеры (у рейдера raider: true). Очередь — порядок выхода.
+const onScreen = new Map();
+let queue = [];
 
-function render() {
+// Список зрителей: клик по строке подставляет ник в поле.
+function renderList(listId, countId, viewers, empty) {
+  const list = document.getElementById(listId);
+  document.getElementById(countId).textContent = viewers.length;
   list.replaceChildren();
-  count.textContent = viewers.size;
-  if (!viewers.size) {
+  if (!viewers.length) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = 'Нікога няма';
+    li.textContent = empty;
     list.append(li);
     return;
   }
-  for (const viewer of viewers.values()) {
+  for (const viewer of viewers) {
     const li = document.createElement('li');
     const character = document.createElement('span');
     character.className = 'character';
     character.textContent = ` — ${viewer.character ?? 'без персанажа'}`;
     li.append(viewer.name, character);
-    li.title = 'Падставіць нік у поле';
-    li.onclick = () => {
-      nameInput.value = viewer.name;
-      nameInput.focus();
-    };
+    if (!viewer.raider) {
+      li.title = 'Падставіць нік у поле';
+      li.onclick = () => {
+        nameInput.value = viewer.name;
+        nameInput.focus();
+      };
+    }
     list.append(li);
   }
+}
+
+function render() {
+  const all = [...onScreen.values()];
+  renderList('list', 'count', all.filter((v) => !v.raider), 'Нікога няма');
+  renderList('queue', 'queueCount', queue, 'Чарга пустая');
+  renderList('raiders', 'raidersCount', all.filter((v) => v.raider), 'Рэйду няма');
 }
 
 const send = connect(
@@ -41,14 +55,17 @@ const send = connect(
       characterSelect.replaceChildren(
         ...Object.keys(msg.characters ?? {}).map((name) => new Option(name, name, false, name === chosen)),
       );
-      viewers.clear();
-      for (const v of msg.viewers) viewers.set(v.id, v);
+      onScreen.clear();
+      for (const v of msg.viewers) onScreen.set(v.id, v);
+      queue = msg.queue ?? [];
     } else if (msg.type === 'join') {
-      viewers.set(msg.viewer.id, msg.viewer);
+      onScreen.set(msg.viewer.id, msg.viewer);
     } else if (msg.type === 'leave') {
-      viewers.delete(msg.id);
+      onScreen.delete(msg.id);
+    } else if (msg.type === 'queue') {
+      queue = msg.queue;
     } else if (msg.type === 'character') {
-      const viewer = viewers.get(msg.id);
+      const viewer = onScreen.get(msg.id);
       if (viewer) viewer.character = msg.character;
     }
     render();
@@ -66,6 +83,12 @@ for (const button of document.querySelectorAll('button[data-action]')) {
     send({ type: 'test', action: button.dataset.action, name, character: characterSelect.value });
   };
 }
+
+document.getElementById('raid').onclick = () => {
+  const channel = channelInput.value.trim();
+  if (!channel) return channelInput.focus();
+  send({ type: 'test', action: 'raid', channel, count: Number(raidCount.value) });
+};
 
 // Enter в поле — «Дадаць гледача».
 nameInput.addEventListener('keydown', (e) => {

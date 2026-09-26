@@ -87,7 +87,12 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin }) => !origin || allowedOrigins.has(origin),
 });
 
-const viewers = new Viewers(store);
+const viewers = new Viewers(store, {
+  maxOnScreen: config.maxOnScreen,
+  entrances: config.entrances,
+  raid: config.raid,
+  characters: () => catalog.names(),
+});
 
 function broadcast(msg) {
   const data = JSON.stringify(msg);
@@ -96,13 +101,18 @@ function broadcast(msg) {
   }
 }
 
-viewers.on('join', (viewer) => {
-  console.log(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'})`);
-  broadcast({ type: 'join', viewer });
+viewers.on('join', (viewer, entrance) => {
+  // Рейдеров много и с одним ником — в терминал одной строкой на весь рейд (см. 'raid' ниже).
+  if (!viewer.raider) console.log(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'}, з'яўленне: ${entrance})`);
+  broadcast({ type: 'join', viewer, entrance });
 });
 viewers.on('leave', (viewer) => {
-  console.log(`[leave] ${viewer.name}`);
+  if (!viewer.raider) console.log(`[leave] ${viewer.name}`);
   broadcast({ type: 'leave', id: viewer.id });
+});
+viewers.on('queue', (queue) => {
+  console.log(`[чарга] ${queue.length ? queue.map((v) => v.name).join(', ') : 'пустая'}`);
+  broadcast({ type: 'queue', queue });
 });
 viewers.on('character', (viewer) => {
   console.log(`[перс] ${viewer.name} → ${viewer.character}`);
@@ -118,10 +128,17 @@ viewers.on('message', (viewer, text) => {
 
 // Команды тестовой панели. Ник → id в нижнем регистре, как login в Twitch.
 function handleTest(msg) {
+  if (msg.action === 'raid') {
+    const channel = String(msg.channel ?? '').trim().slice(0, 25);
+    const n = viewers.raid(channel, Number(msg.count));
+    if (n) console.log(`[рэйд] ${channel}: ${msg.count} гледачоў, спускаецца ${n}, сыдуць праз ${viewers.raidStaySeconds} с`);
+    else console.log('[рэйд] трэба канал і лік больш за 0');
+    return;
+  }
   const name = String(msg.name ?? '').trim().slice(0, 25);
   if (!name) return;
   const id = name.toLowerCase();
-  if (msg.action === 'join' && !viewers.join({ id, name })) console.log(`[test] ${name} ужо на экране`);
+  if (msg.action === 'join' && !viewers.join({ id, name })) console.log(`[test] ${name} ужо на экране або ў чарзе`);
   if (msg.action === 'leave' && !viewers.leave(id)) console.log(`[test] ${name} няма на экране`);
   if (msg.action === 'message' && !viewers.message(id, 'тэставае паведамленне')) console.log(`[test] ${name} няма на экране`);
   if (msg.action === 'character') viewers.choose({ id, name }, String(msg.character ?? ''));
@@ -130,7 +147,7 @@ function handleTest(msg) {
 wss.on('connection', (ws) => {
   console.log(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
   // Новому клиенту (или перезагруженному оверлею) — настройки, каталог персонажей и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: config.overlay, characters: catalog.toClient(), viewers: viewers.list() }));
+  ws.send(JSON.stringify({ type: 'state', config: config.overlay, characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
 
   ws.on('message', (data) => {
     let msg;

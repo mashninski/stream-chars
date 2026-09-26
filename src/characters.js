@@ -57,6 +57,7 @@ function loadOne(dir, name) {
     if (!Number.isInteger(a.row) || a.row < 0) throw new Error(`«${anim}»: row павінен быць цэлым лікам ад 0`);
     if (!positiveInt(a.frames)) throw new Error(`«${anim}»: frames павінен быць цэлым лікам больш за 0`);
     if (!(typeof a.fps === 'number' && a.fps > 0)) throw new Error(`«${anim}»: fps павінен быць лікам больш за 0`);
+    if (a.loop !== undefined && typeof a.loop !== 'boolean') throw new Error(`«${anim}»: loop павінен быць true або false`);
     if (a.row >= rows) {
       throw new Error(`«${anim}»: радок ${a.row} па-за sheet.png (вышыня ${sheet.height} px — радкоў ${rows}, лік ад 0)`);
     }
@@ -64,11 +65,15 @@ function loadOne(dir, name) {
       throw new Error(`«${anim}»: ${a.frames} кадраў не змяшчаюцца ў шырыню sheet.png (${sheet.width} px — кадраў ${cols})`);
     }
   }
-  // Оверлею — только то, что нужно для рисования.
+  // Оверлею — только то, что нужно для рисования. Необязательные анимации (для нового поведения)
+  // с ошибкой не валят персонажа — пропускаются, вместо них рисуется запасная.
+  // loop: по кругу (по умолчанию) или один раз с остановкой на последнем кадре (false).
   const clean = {};
   for (const [anim, a] of Object.entries(animations)) {
     if (Number.isInteger(a?.row) && positiveInt(a?.frames) && a.fps > 0 && a.row < rows && a.frames <= cols) {
-      clean[anim] = { row: a.row, frames: a.frames, fps: a.fps };
+      clean[anim] = { row: a.row, frames: a.frames, fps: a.fps, loop: a.loop !== false };
+    } else {
+      console.error(`Персанаж «${name}»: анімацыя «${anim}» з памылкай у character.json — прапушчана`);
     }
   }
   return { name, frameWidth, frameHeight, animations: clean, sheetFile };
