@@ -6,7 +6,18 @@ import { connect } from './connection.js';
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 const actors = new Map();
+// Листы персонажей: имя → { info, image }. Приходят с каталогом в 'state'.
+const sprites = new Map();
 let world = null;
+
+function loadSprites(characters) {
+  sprites.clear();
+  for (const [name, info] of Object.entries(characters)) {
+    const image = new Image();
+    image.src = `/characters/${encodeURIComponent(name)}/sheet.png`;
+    sprites.set(name, { info, image });
+  }
+}
 
 function randomX() {
   const { left, right } = world.strip;
@@ -15,7 +26,10 @@ function randomX() {
 
 function add(viewer) {
   const actor = actors.get(viewer.id);
-  if (actor) return actor.stay();
+  if (actor) {
+    actor.character = viewer.character;
+    return actor.stay();
+  }
   actors.set(viewer.id, new Actor(viewer, world, randomX()));
 }
 
@@ -31,6 +45,7 @@ connect((msg) => {
     world = msg.config;
     canvas.width = world.width;
     canvas.height = world.height;
+    loadSprites(msg.characters ?? {});
     sync(msg.viewers);
   } else if (!world) {
     return;
@@ -38,6 +53,9 @@ connect((msg) => {
     add(msg.viewer);
   } else if (msg.type === 'leave') {
     actors.get(msg.id)?.leave();
+  } else if (msg.type === 'character') {
+    const actor = actors.get(msg.id);
+    if (actor) actor.character = msg.character;
   }
   // message: реакция (прыжок) — задача 3.
 });
@@ -53,7 +71,7 @@ function frame(now) {
     for (const actor of actors.values()) {
       actor.update(dt);
       if (actor.gone) actors.delete(actor.id);
-      else drawActor(ctx, actor, world);
+      else drawActor(ctx, actor, world, sprites.get(actor.character));
     }
   }
   requestAnimationFrame(frame);

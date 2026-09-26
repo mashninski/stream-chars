@@ -5,7 +5,8 @@
   "description": "Аватары зрителей для стримов на Twitch через OBS",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "stubs": "node scripts/make-stubs.js"
   },
   "engines": {
     "node": ">=20"

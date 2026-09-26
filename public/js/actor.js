@@ -1,5 +1,5 @@
 // Логика персонажа: где стоит, куда идёт, в каком состоянии. Ничего не рисует —
-// рисование в render.js, его можно заменить (спрайты, задача 2), не трогая этот файл.
+// рисование в render.js.
 //
 // Состояния: idle (стоит) → walk (идёт) → idle → … ; leave (уходит за край) → gone (можно удалять).
 // x — середина персонажа по горизонтали, в пикселях экрана. facing: 1 — смотрит вправо, -1 — влево.
@@ -17,6 +17,8 @@ export class Actor {
   constructor(viewer, world, x, rand = Math.random) {
     this.id = viewer.id;
     this.name = viewer.name;
+    // Имя персонажа из каталога — какой спрайт рисовать. На поведение не влияет.
+    this.character = viewer.character;
     this.world = world;
     this.rand = rand;
     this.x = x;

@@ -1,31 +1,29 @@
-// Рисование персонажа. Заглушка: цветной прямоугольник с «глазом» в сторону взгляда.
-// В задаче 2 заменяется на спрайт; логика (actor.js) при этом не меняется.
+// Рисование персонажа спрайтом из characters/<імя>/sheet.png. Логика (actor.js) сюда не входит.
+// Кадры в листе смотрят вправо; влево — зеркало. Низ кадра стоит на линии земли.
 
-// Размер заглушки в «пикселях арта», на экране умножается на world.scale.
-const BODY_W = 14;
-const BODY_H = 22;
+// Состояние логики → анимация листа. Нет такой анимации у персонажа — idle.
+const ANIMATION_FOR_STATE = { idle: 'idle', walk: 'walk', leave: 'walk' };
 
-// Цвет от ника: один и тот же ник — всегда один цвет.
-export function colorFor(name) {
-  let hash = 0;
-  for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)) | 0;
-  return `hsl(${Math.abs(hash) % 360}, 70%, 55%)`;
-}
-
-export function drawActor(ctx, actor, world) {
+// sprite = { info: { frameWidth, frameHeight, animations }, image } или undefined, пока лист не загружен.
+export function drawActor(ctx, actor, world, sprite) {
   const s = world.scale;
-  const w = BODY_W * s;
-  const h = BODY_H * s;
-  const left = Math.round(actor.x - w / 2);
-  const top = world.strip.groundY - h;
+  let top = world.strip.groundY;
 
-  ctx.fillStyle = colorFor(actor.name);
-  ctx.fillRect(left, top, w, h);
+  if (sprite?.image.complete && sprite.image.naturalWidth) {
+    const { frameWidth: fw, frameHeight: fh, animations } = sprite.info;
+    const anim = animations[ANIMATION_FOR_STATE[actor.state] ?? actor.state] ?? animations.idle;
+    const frame = Math.floor(actor.stateTime * anim.fps) % anim.frames;
+    const w = fw * s;
+    const h = fh * s;
+    const left = Math.round(actor.x - w / 2);
+    top = world.strip.groundY - h;
 
-  // Глаз: 2×2 пикселя арта, со стороны взгляда.
-  ctx.fillStyle = '#111';
-  const eyeX = actor.facing > 0 ? left + w - 5 * s : left + 3 * s;
-  ctx.fillRect(eyeX, top + 5 * s, 2 * s, 2 * s);
+    ctx.save();
+    ctx.translate(actor.facing < 0 ? left + w : left, top);
+    if (actor.facing < 0) ctx.scale(-1, 1);
+    ctx.drawImage(sprite.image, frame * fw, anim.row * fh, fw, fh, 0, 0, w, h);
+    ctx.restore();
+  }
 
   // Ник над головой, с тёмной обводкой — читается на любом фоне.
   ctx.font = 'bold 22px sans-serif';

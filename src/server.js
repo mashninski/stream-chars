@@ -5,11 +5,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Viewers } from './viewers.js';
+import { Catalog } from './characters.js';
+import { ViewerStore } from './store.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const publicDir = path.join(root, 'public');
 const config = JSON.parse(await fs.readFile(path.join(root, 'config.json'), 'utf8'));
 const port = config.port;
+const catalog = new Catalog(path.join(root, 'characters'));
+const store = new ViewerStore(path.join(root, 'data', 'viewers.json'), catalog);
 
 const pages = {
   '/overlay': 'overlay.html',
@@ -36,6 +40,26 @@ async function sendFile(res, file) {
   }
 }
 
+// Лист персонажа: /characters/<імя>/sheet.png. Имя в адресе закодировано (кириллица),
+// отдаём только sheet.png персонажей из загруженного каталога — другой путь не собрать.
+async function sendSheet(res, encodedName) {
+  let name;
+  try {
+    name = decodeURIComponent(encodedName);
+  } catch {
+    return notFound(res);
+  }
+  const character = catalog.get(name);
+  if (!character) return notFound(res);
+  try {
+    const body = await fs.readFile(character.sheetFile);
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+    res.end(body);
+  } catch {
+    notFound(res);
+  }
+}
+
 function notFound(res) {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Не знойдзена');
@@ -49,6 +73,8 @@ const server = http.createServer((req, res) => {
   }
   if (pages[url.pathname]) return sendFile(res, pages[url.pathname]);
   if (url.pathname.startsWith('/js/')) return sendFile(res, url.pathname.slice(1));
+  const sheet = url.pathname.match(/^\/characters\/([^/]+)\/sheet\.png$/);
+  if (sheet) return sendSheet(res, sheet[1]);
   notFound(res);
 });
 
@@ -61,7 +87,7 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin }) => !origin || allowedOrigins.has(origin),
 });
 
-const viewers = new Viewers();
+const viewers = new Viewers(store);
 
 function broadcast(msg) {
   const data = JSON.stringify(msg);
@@ -71,12 +97,19 @@ function broadcast(msg) {
 }
 
 viewers.on('join', (viewer) => {
-  console.log(`[join] ${viewer.name}`);
+  console.log(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'})`);
   broadcast({ type: 'join', viewer });
 });
 viewers.on('leave', (viewer) => {
   console.log(`[leave] ${viewer.name}`);
   broadcast({ type: 'leave', id: viewer.id });
+});
+viewers.on('character', (viewer) => {
+  console.log(`[перс] ${viewer.name} → ${viewer.character}`);
+  broadcast({ type: 'character', id: viewer.id, character: viewer.character });
+});
+viewers.on('unknownCharacter', (viewer, characterName) => {
+  console.log(`[перс] ${viewer.name}: персанажа «${characterName}» няма. Ёсць: ${catalog.names().join(', ')}`);
 });
 viewers.on('message', (viewer, text) => {
   console.log(`[message] ${viewer.name}: ${text}`);
@@ -91,12 +124,13 @@ function handleTest(msg) {
   if (msg.action === 'join' && !viewers.join({ id, name })) console.log(`[test] ${name} ужо на экране`);
   if (msg.action === 'leave' && !viewers.leave(id)) console.log(`[test] ${name} няма на экране`);
   if (msg.action === 'message' && !viewers.message(id, 'тэставае паведамленне')) console.log(`[test] ${name} няма на экране`);
+  if (msg.action === 'character') viewers.choose({ id, name }, String(msg.character ?? ''));
 }
 
 wss.on('connection', (ws) => {
   console.log(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
-  // Новому клиенту (или перезагруженному оверлею) — настройки и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: config.overlay, viewers: viewers.list() }));
+  // Новому клиенту (или перезагруженному оверлею) — настройки, каталог персонажей и текущий список.
+  ws.send(JSON.stringify({ type: 'state', config: config.overlay, characters: catalog.toClient(), viewers: viewers.list() }));
 
   ws.on('message', (data) => {
     let msg;
