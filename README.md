@@ -12,6 +12,8 @@ npm start
 
 `npm install` — один раз (и после изменения `package.json`). `npm start` запускает программу; остановить — `Ctrl+C` в том же окне.
 
+В PowerShell (синее или чёрное окно «Windows PowerShell») пишите `npm.cmd start` и `npm.cmd install`: просто `npm` там блокируется ошибкой «выполнение сценариев отключено в этой системе». В «Командной строке» (cmd) работает и `npm start`.
+
 ## Адреса
 - `http://localhost:4700/overlay` — оверлей для OBS: Browser Source, 1920×1080.
 - `http://localhost:4700/test` — тестовая панель: добавить/убрать зрителя без Twitch.
