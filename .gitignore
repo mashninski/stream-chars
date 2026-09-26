@@ -1,0 +1,8 @@
+# секреты
+.env.local
+.env*.local
+
+# системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store
