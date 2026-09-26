@@ -1,0 +1,16 @@
+{
+  "name": "stream-chars",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Аватары зрителей для стримов на Twitch через OBS",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

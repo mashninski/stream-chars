@@ -6,3 +6,7 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# зависимости и данные программы
+node_modules/
+data/

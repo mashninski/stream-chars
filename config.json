@@ -1,0 +1,17 @@
+{
+  "port": 4700,
+  "maxOnScreen": 30,
+  "overlay": {
+    "width": 1920,
+    "height": 1080,
+    "strip": {
+      "left": 40,
+      "right": 1880,
+      "groundY": 1060
+    },
+    "scale": 3,
+    "walkSpeed": 60,
+    "walkDistance": [80, 400],
+    "idlePause": [2, 6]
+  }
+}
