@@ -273,15 +273,20 @@ local function refresh_overlay()
   return false
 end
 
+-- Повторные нажатия, пока перезапуск идёт, пропускаются: иначе каждое — ещё одна остановка.
+local restarting = false
 local function restart_program()
+  if restarting then return false end
+  restarting = true
   stop_program(5000)
   retries = 0
+  last_state = "перазапуск… (праз 3 с — «Праверыць стан»)"
   -- Своего процесса могло и не быть (программу запускали руками) — даём ей время выйти.
   obs.timer_add(function()
     obs.remove_current_callback()
+    restarting = false
     start_program()
   end, 2500)
-  return false
 end
 
 -- ---------- функции скрипта OBS ----------
@@ -293,6 +298,14 @@ function script_description()
     port .. "/admin</code>."
 end
 
+-- Строка «Стан» в открытом окне свойств. OBS после кнопки (return true) перерисовывает
+-- уже созданные свойства, script_properties заново не вызывает — текст меняем сами.
+local function show_state(props)
+  local p = obs.obs_properties_get(props, "state")
+  if p ~= nil then obs.obs_property_set_description(p, "Стан: " .. last_state) end
+  return true
+end
+
 function script_properties()
   local props = obs.obs_properties_create()
   obs.obs_properties_add_text(props, "state", "Стан: " .. last_state, obs.OBS_TEXT_INFO)
@@ -300,8 +313,8 @@ function script_properties()
   obs.obs_properties_add_int(props, "port", "Порт праграмы", 1024, 65535, 1)
   obs.obs_properties_add_button(props, "add_overlay", "Дадаць аверлэй у сцэну", function() return add_overlay() end)
   obs.obs_properties_add_button(props, "refresh_overlay", "Абнавіць аверлэй", function() return refresh_overlay() end)
-  obs.obs_properties_add_button(props, "restart", "Перазапусціць праграму", function() return restart_program() end)
-  obs.obs_properties_add_button(props, "check", "Праверыць стан", function() watch() return true end)
+  obs.obs_properties_add_button(props, "restart", "Перазапусціць праграму", function(p) restart_program() return show_state(p) end)
+  obs.obs_properties_add_button(props, "check", "Праверыць стан", function(p) watch() return show_state(p) end)
   obs.obs_properties_add_text(props, "docks", "Адмін-панэль і вокны «Персанажы», «Рэдкасць» — док-панэлі OBS:\n" ..
     "«Док-панэлі» → «Карыстальніцкія док-панэлі браўзера…»,\n" ..
     "stream-chars — http://localhost:" .. port .. "/admin\n" ..
@@ -342,6 +355,7 @@ end
 function script_unload()
   pcall(function()
     obs.timer_remove(watch)
-    stop_program(0)
+    -- Ждём выхода (до 3 с): при перезагрузке скрипта новый запуск иначе упирается в занятый порт.
+    stop_program(3000)
   end)
 end
