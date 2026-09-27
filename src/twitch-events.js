@@ -1,6 +1,7 @@
 // События EventSub → герои. Здесь решается, что делает каждое событие Twitch:
 // - сообщение: цвет ника, месяцы подписки (значок subscriber → крылья; значка нет — крылья прячутся),
-//   потом «первое слово» или triggers.message с облаком (actions.message); не на экране — только признаки;
+//   потом «первое слово» или triggers.message с облаком (actions.message); автора ещё нет в списке чата —
+//   герой выходит сразу (twitch.seen); на экран не влез (очередь) — только признаки;
 // - рейд → рейдеры на парашютах; фолловер → убор; подписка/продление → месяцы → крылья;
 // - награда за баллы → rewards.handle. Стример и боты (twitch.ignore) — без реакции.
 import { defaultNameColor } from '../public/js/color.js';
@@ -23,12 +24,9 @@ export function wireTwitchEvents({ eventsub, twitch, store, viewers, actions, re
   eventsub.on('channel.chat.message', (ev) => {
     const id = ev.chatter_user_id;
     if (ignored(id, ev.chatter_user_login)) return;
+    twitch.seen({ id, login: ev.chatter_user_login, name: ev.chatter_user_name });
     const entry = store.get(id);
-    if (!entry) {
-      // Героя ещё нет (не был в списке чата) — появление только по списку чата.
-      log.info(`[чат] ${ev.chatter_user_name}: паведамленне, героя пакуль няма`);
-      return;
-    }
+    if (!entry) return;
     actions.setChatColor(id, ev.color || defaultNameColor(ev.chatter_user_login));
     const sub = subscriberBadge(ev.badges);
     if (sub.active !== entry.flags.subActive || (sub.active && sub.months > entry.flags.subMonths)) {

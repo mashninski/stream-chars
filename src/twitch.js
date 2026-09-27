@@ -70,7 +70,7 @@ export class Twitch extends EventEmitter {
   }
 
   get #cfg() {
-    return { pollSeconds: 60, leaveAfterPolls: 3, ignore: [], ...this.#o.settings.get().twitch };
+    return { pollSeconds: 30, leaveAfterPolls: 2, messageGraceSeconds: 300, ignore: [], ...this.#o.settings.get().twitch };
   }
 
   get clientId() {
@@ -437,6 +437,19 @@ export class Twitch extends EventEmitter {
     if (joined.length) await this.fetchColors(joined).catch((err) => this.#o.log.info(`[twitch] колеры нікаў: ${err.message}`));
     this.#schedulePoll();
     return { joined, left };
+  }
+
+  // Написал в чат, а в списке чата его ещё нет: Twitch вносит в список с опозданием на минуты,
+  // сообщения приходят сразу — герой выходит по сообщению. Пока Twitch не внёс его в список,
+  // messageGraceSeconds опросы в уход не считаются. Уже в списке — false.
+  seen({ id, login, name }) {
+    if (!this.#user || this.#present.has(id)) return false;
+    const grace = Math.ceil(this.#cfg.messageGraceSeconds / this.#cfg.pollSeconds);
+    this.#present.set(id, { id, login, name, missing: -grace });
+    this.#o.log.info(`[чат] ${name}: напісаў, у спісе чата яшчэ няма — выходзіць па паведамленні`);
+    this.emit('join', { id, login, name });
+    this.#setText(`падлучана: ${this.#user.name}, у чаце ${this.#present.size}`);
+    return true;
   }
 
   #schedulePoll() {

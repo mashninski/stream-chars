@@ -71,8 +71,9 @@
   "rewardMode": "auto",
   "rewardLinks": {},
   "twitch": {
-    "pollSeconds": 60,
-    "leaveAfterPolls": 3,
+    "pollSeconds": 30,
+    "leaveAfterPolls": 2,
+    "messageGraceSeconds": 300,
     "ignore": ["nightbot", "streamelements", "streamlabs", "moobot", "fossabot", "wizebot", "sery_bot", "soundalerts", "streamstickers", "commanderroot", "botrixoficial"]
   },
   "raid": {
