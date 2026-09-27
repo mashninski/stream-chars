@@ -81,7 +81,7 @@ npm start
 Программу можно запустить с другой папкой данных и другим портом — настоящие `data/` и порт не трогаются:
 
 ```
-node src/server.js --data-dir D:	emp\sc-data --port 4710
+node src/server.js --data-dir D:\temp\sc-data --port 4710
 ```
 
 То же переменными окружения: `STREAM_CHARS_DATA_DIR`, `STREAM_CHARS_PORT` (аргумент важнее).
