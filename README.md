@@ -121,7 +121,7 @@ heroes/
 
 **Признаки (`traits.json`).** Запись: `id`, `title`, `type` (`item` — предмет категории `category`, `choice` — из `values`, `color`, `bool`), `appears` (когда появляется: `firstSeen`, `follow`, `subscription`, `firstMessage`, `twitch`), `pick` (как выбирается: `weights`, `farColor`, `tiers`), `admin` (меняется из админки), `points` (меняется за баллы), `optional`, `layer` (`{ "z", "anchor" }` — рисуется предметом по точке привязки). Новый признак (например, плащ) — запись здесь и папка `heroes/cloaks/`; админка и оверлей подхватят сами.
 
-**Заглушки** рисует `npm run stubs` (`scripts/make-stubs.js`): перезаписывает только свои файлы в `heroes/`; `node scripts/make-stubs.js --out <папка>` — нарисовать в другую папку, `heroes/` не трогая. Старые заглушки в `characters/` программа больше не читает — папку можно удалить.
+**Заглушки** рисует `npm run stubs` (`scripts/make-stubs.js`): перезаписывает только свои файлы в `heroes/`; `node scripts/make-stubs.js --out <папка>` — нарисовать в другую папку, `heroes/` не трогая.
 
 **Импорт картинки** (лист поз на однотонном фоне) — `scripts/import-art.js`:
 ```

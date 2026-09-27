@@ -63,7 +63,7 @@
     "class": { "title": "Змяніць клас героя", "cost": 2000, "enabled": true, "action": "reroll:class", "prompt": "Твой герой атрымае іншы клас", "followersOnly": false },
     "sex": { "title": "Змяніць пол героя", "cost": 2000, "enabled": true, "action": "reroll:sex", "prompt": "Твой герой зменіць пол", "followersOnly": false },
     "color": { "title": "Змяніць колер курткі", "cost": 1500, "enabled": true, "action": "reroll:color", "prompt": "Новы колер курткі — не падобны на суседзяў", "followersOnly": false },
-    "hat": { "title": "Змяніць галаўны ўбор", "cost": 5000, "enabled": true, "action": "reroll:hat", "prompt": "Толькі для падпісчыкаў канала", "followersOnly": true },
+    "hat": { "title": "Змяніць галаўны ўбор", "cost": 5000, "enabled": true, "action": "reroll:hat", "prompt": "Толькі для фалоўераў канала", "followersOnly": true },
     "special": { "title": "Спецдзеянне героя", "cost": 10000, "enabled": true, "action": "special", "prompt": "Герой зробіць адно са сваіх спецдзеянняў", "followersOnly": false },
     "wave": { "title": "Памахаць", "cost": 500, "enabled": true, "action": "common/wave", "prompt": "Герой памахае суседзям", "followersOnly": false },
     "dance": { "title": "Патанцаваць", "cost": 800, "enabled": true, "action": "common/dance", "prompt": "Герой патанцуе", "followersOnly": false },
