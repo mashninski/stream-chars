@@ -1,0 +1,22 @@
+{
+  "title": "Бочка",
+  "anchor": [
+    7,
+    15
+  ],
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 1,
+      "fps": 1
+    },
+    "roll": {
+      "row": 0,
+      "frames": 4,
+      "fps": 10
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 16,
+  "frameHeight": 16
+}

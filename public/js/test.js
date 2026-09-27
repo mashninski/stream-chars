@@ -1,16 +1,27 @@
-// Тестовая панель: шлёт программе команды join/leave/message/смена персонажа/рейд
+// Тестовая панель: шлёт программе команды join/leave/message/смена признака/рейд
 // и показывает, кто на экране, кто в очереди и сколько рейдеров.
 import { connect } from './connection.js';
 
 const nameInput = document.getElementById('name');
 const textInput = document.getElementById('text');
-const characterSelect = document.getElementById('character');
+const traitSelect = document.getElementById('trait');
+const valueBox = document.getElementById('valueBox');
 const channelInput = document.getElementById('channel');
 const raidCount = document.getElementById('raidCount');
 const status = document.getElementById('status');
 // На экране: зрители и рейдеры (у рейдера raider: true). Очередь — порядок выхода.
 const onScreen = new Map();
 let queue = [];
+// Каталог и реестр признаков — из 'state'.
+let catalog = { categories: {}, traits: [] };
+
+// Подпись значения признака: название предмета или значения из реестра.
+function valueTitle(trait, value) {
+  if (value == null) return '—';
+  if (trait.type === 'item') return catalog.categories[trait.category]?.[value]?.title ?? value;
+  if (trait.type === 'choice') return trait.values[value]?.title ?? value;
+  return String(value);
+}
 
 // Список зрителей: клик по строке подставляет ник в поле.
 function renderList(listId, countId, viewers, empty) {
@@ -26,10 +37,18 @@ function renderList(listId, countId, viewers, empty) {
   }
   for (const viewer of viewers) {
     const li = document.createElement('li');
-    const character = document.createElement('span');
-    character.className = 'character';
-    character.textContent = ` — ${viewer.character ?? 'без персанажа'}`;
-    li.append(viewer.name, character);
+    const info = document.createElement('span');
+    info.className = 'character';
+    const t = viewer.traits ?? {};
+    const shown = catalog.traits.filter((tr) => tr.appears === 'firstSeen' && tr.type !== 'color');
+    info.textContent = ` — ${shown.map((tr) => valueTitle(tr, t[tr.id])).join(', ')}`;
+    li.append(viewer.name, info);
+    if (t.color) {
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.background = t.color;
+      li.append(sw);
+    }
     if (!viewer.raider) {
       li.title = 'Падставіць нік у поле';
       li.onclick = () => {
@@ -48,14 +67,36 @@ function render() {
   renderList('raiders', 'raidersCount', all.filter((v) => v.raider), 'Рэйду няма');
 }
 
+// Поле значения под выбранный признак: список (предметы, варианты), цвет, да/нет.
+let valueInput = null;
+function renderValueInput() {
+  const trait = catalog.traits.find((t) => t.id === traitSelect.value);
+  valueBox.replaceChildren();
+  if (!trait) return;
+  if (trait.type === 'color') {
+    valueInput = Object.assign(document.createElement('input'), { type: 'color', value: '#e05050' });
+  } else {
+    valueInput = document.createElement('select');
+    let options = [];
+    if (trait.type === 'bool') options = [['true', 'так'], ['false', 'не']];
+    else if (trait.type === 'item') options = Object.values(catalog.categories[trait.category] ?? {}).map((it) => [it.id, it.title]);
+    else if (trait.type === 'choice') options = Object.entries(trait.values).map(([id, v]) => [id, v.title ?? id]);
+    if (trait.optional) options.unshift(['', '— няма']);
+    valueInput.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
+  }
+  valueBox.append(valueInput);
+}
+traitSelect.onchange = renderValueInput;
+
 const send = connect(
   (msg) => {
     if (msg.type === 'state') {
-      // Каталог персонажей — в выпадающий список, выбранный сохраняется.
-      const chosen = characterSelect.value;
-      characterSelect.replaceChildren(
-        ...Object.keys(msg.characters ?? {}).map((name) => new Option(name, name, false, name === chosen)),
+      catalog = msg.catalog ?? catalog;
+      const chosen = traitSelect.value;
+      traitSelect.replaceChildren(
+        ...catalog.traits.filter((t) => t.admin).map((t) => new Option(t.title, t.id, false, t.id === chosen)),
       );
+      renderValueInput();
       onScreen.clear();
       for (const v of msg.viewers) onScreen.set(v.id, v);
       queue = msg.queue ?? [];
@@ -65,9 +106,9 @@ const send = connect(
       onScreen.delete(msg.id);
     } else if (msg.type === 'queue') {
       queue = msg.queue;
-    } else if (msg.type === 'character') {
+    } else if (msg.type === 'traits') {
       const viewer = onScreen.get(msg.id);
-      if (viewer) viewer.character = msg.character;
+      if (viewer) viewer.traits = msg.traits;
     }
     render();
   },
@@ -81,7 +122,7 @@ for (const button of document.querySelectorAll('button[data-action]')) {
   button.onclick = () => {
     const name = nameInput.value.trim();
     if (!name) return nameInput.focus();
-    send({ type: 'test', action: button.dataset.action, name, character: characterSelect.value, text: textInput.value });
+    send({ type: 'test', action: button.dataset.action, name, text: textInput.value, trait: traitSelect.value, value: valueInput?.value ?? '' });
   };
 }
 

@@ -18,6 +18,7 @@
   ul li { padding: 4px 8px; cursor: pointer; border-radius: 4px; }
   ul li:hover { background: #ddd; }
   .character { color: #666; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid #333; vertical-align: middle; margin-left: 4px; }
   .empty { color: #777; }
 </style>
 </head>
@@ -36,8 +37,9 @@
   <button data-action="message">Паведамленне</button>
 </div>
 <div class="row">
-  <select id="character"></select>
-  <button data-action="character">Змяніць персанажа</button>
+  <select id="trait" title="Прыкмета героя"></select>
+  <span id="valueBox"></span>
+  <button data-action="trait">Змяніць</button>
 </div>
 <div class="row">
   <input id="channel" placeholder="Канал-рэйдэр" maxlength="25">

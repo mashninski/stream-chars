@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import { Viewers } from './viewers.js';
-import { Catalog } from './characters.js';
+import { Catalog } from './catalog.js';
+import { Heroes, loadTraits } from './heroes.js';
 import { ViewerStore } from './store.js';
 import { root, readEnv } from './env.js';
 import { log } from './log.js';
@@ -22,8 +23,10 @@ const publicDir = path.join(root, 'public');
 const settings = new Settings(readJson(path.join(root, 'config.json')), path.join(env.dataDir, 'settings.json'), log);
 // Порт — единственная настройка, которая требует перезапуска.
 const port = env.port ?? settings.get().port;
-const catalog = new Catalog(path.join(root, 'characters'));
-const store = new ViewerStore(path.join(env.dataDir, 'viewers.json'), catalog);
+const heroesDir = path.join(root, 'heroes');
+const catalog = new Catalog(heroesDir);
+const heroes = new Heroes({ traits: loadTraits(path.join(heroesDir, 'traits.json'), log), catalog, settings });
+const store = new ViewerStore(path.join(env.dataDir, 'viewers.json'), heroes);
 
 const pages = {
   '/overlay': 'overlay.html',
@@ -50,19 +53,13 @@ async function sendFile(res, file) {
   }
 }
 
-// Лист персонажа: /characters/<імя>/sheet.png. Имя в адресе закодировано (кириллица),
-// отдаём только sheet.png персонажей из загруженного каталога — другой путь не собрать.
-async function sendSheet(res, encodedName) {
-  let name;
+// Картинки каталога героев: /heroes/<категория>/<id>/<файл>.png. Отдаём только файлы из загруженного
+// каталога (catalog.file) — другой путь не собрать.
+async function sendCatalogFile(res, url) {
+  const file = catalog.file(url);
+  if (!file) return notFound(res);
   try {
-    name = decodeURIComponent(encodedName);
-  } catch {
-    return notFound(res);
-  }
-  const character = catalog.get(name);
-  if (!character) return notFound(res);
-  try {
-    const body = await fs.readFile(character.sheetFile);
+    const body = await fs.readFile(file);
     res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
     res.end(body);
   } catch {
@@ -83,8 +80,7 @@ const server = http.createServer((req, res) => {
   }
   if (pages[url.pathname]) return sendFile(res, pages[url.pathname]);
   if (url.pathname.startsWith('/js/')) return sendFile(res, url.pathname.slice(1));
-  const sheet = url.pathname.match(/^\/characters\/([^/]+)\/sheet\.png$/);
-  if (sheet) return sendSheet(res, sheet[1]);
+  if (url.pathname.startsWith('/heroes/')) return sendCatalogFile(res, url.pathname);
   notFound(res);
 });
 
@@ -97,9 +93,8 @@ const wss = new WebSocketServer({
   verifyClient: ({ origin }) => !origin || allowedOrigins.has(origin),
 });
 
-const viewers = new Viewers(store, {
+const viewers = new Viewers(store, heroes, {
   config: () => settings.get(),
-  characters: () => catalog.names(),
 });
 
 // Что нужно оверлею из настроек.
@@ -122,8 +117,8 @@ function broadcast(msg) {
 }
 
 viewers.on('join', (viewer, entrance) => {
-  // Рейдеров много и с одним ником — в терминал одной строкой на весь рейд (см. 'raid' ниже).
-  if (!viewer.raider) log.info(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'}, з'яўленне: ${entrance})`);
+  // Рейдеров много и с одним ником — в журнал одной строкой на весь рейд (см. handleTest).
+  if (!viewer.raider) log.info(`[join] ${viewer.name} (${viewer.traits.class ?? 'без класа'}, з'яўленне: ${entrance})`);
   broadcast({ type: 'join', viewer, entrance });
 });
 viewers.on('leave', (viewer) => {
@@ -134,12 +129,8 @@ viewers.on('queue', (queue) => {
   log.info(`[чарга] ${queue.length ? queue.map((v) => v.name).join(', ') : 'пустая'}`);
   broadcast({ type: 'queue', queue });
 });
-viewers.on('character', (viewer) => {
-  log.info(`[перс] ${viewer.name} → ${viewer.character}`);
-  broadcast({ type: 'character', id: viewer.id, character: viewer.character });
-});
-viewers.on('unknownCharacter', (viewer, characterName) => {
-  log.info(`[перс] ${viewer.name}: персанажа «${characterName}» няма. Ёсць: ${catalog.names().join(', ')}`);
+viewers.on('traits', (viewer) => {
+  broadcast({ type: 'traits', id: viewer.id, traits: viewer.traits });
 });
 viewers.on('act', (viewer, action, params) => {
   log.info(`[act] ${viewer.name}: ${action}${params.text ? ` «${params.text}»` : ''}`);
@@ -151,7 +142,7 @@ function chatMessage(id, text) {
   return viewers.act(id, settings.get().triggers?.message, { text });
 }
 
-// Команды тестовой панели. Ник → id в нижнем регистре, как login в Twitch.
+// Команды тестовой панели. Тестовый зритель: id «test:<нік у ніжнім рэгістры>».
 function handleTest(msg) {
   if (msg.action === 'raid') {
     const channel = String(msg.channel ?? '').trim().slice(0, 25);
@@ -162,20 +153,32 @@ function handleTest(msg) {
   }
   const name = String(msg.name ?? '').trim().slice(0, 25);
   if (!name) return;
-  const id = name.toLowerCase();
+  const id = `test:${name.toLowerCase()}`;
   if (msg.action === 'join' && !viewers.join({ id, name })) log.info(`[test] ${name} ужо на экране або ў чарзе`);
   if (msg.action === 'leave' && !viewers.leave(id)) log.info(`[test] ${name} няма на экране`);
   if (msg.action === 'message') {
     const text = String(msg.text ?? '').slice(0, 500) || 'тэставае паведамленне';
     if (!chatMessage(id, text)) log.info(`[test] ${name} няма на экране`);
   }
-  if (msg.action === 'character') viewers.choose({ id, name }, String(msg.character ?? ''));
+  if (msg.action === 'trait') {
+    const trait = heroes.trait(String(msg.trait ?? ''));
+    let value = msg.value === '' ? null : msg.value;
+    if (trait?.type === 'bool') value = value === true || value === 'true';
+    if (!store.get(id)) log.info(`[test] ${name} яшчэ не з'яўляўся — героя няма`);
+    else if (!viewers.setTrait(id, trait?.id, value)) log.info(`[test] ${name}: «${msg.trait}» = «${msg.value}» — няма такога значэння`);
+    else log.info(`[прыкмета] ${name}: ${trait.title.toLowerCase()} → ${value}`);
+  }
+}
+
+// Что нужно клиентам о каталоге: сетка тела, предметы, реестр признаков.
+function catalogForClient() {
+  return { ...catalog.toClient(), traits: heroes.toClient() };
 }
 
 wss.on('connection', (ws) => {
   log.info(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
-  // Новому клиенту (или перезагруженному оверлею) — настройки, каталог персонажей и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: overlayConfig(), characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
+  // Новому клиенту (или перезагруженному оверлею) — настройки, каталог героев и текущий список.
+  ws.send(JSON.stringify({ type: 'state', config: overlayConfig(), catalog: catalogForClient(), viewers: viewers.list(), queue: viewers.queue() }));
 
   ws.on('message', (data) => {
     let msg;

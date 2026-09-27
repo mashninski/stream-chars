@@ -1,0 +1,140 @@
+{
+  "title": "Маг",
+  "weight": 1,
+  "layers": {
+    "m": {
+      "body": "m-body.png",
+      "jacket": "m-jacket.png",
+      "decor": "m-decor.png"
+    },
+    "f": {
+      "body": "f-body.png",
+      "jacket": "f-jacket.png",
+      "decor": "f-decor.png"
+    }
+  },
+  "animations": {
+    "cast": {
+      "row": 23,
+      "frames": 4,
+      "fps": 6,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            21,
+            15
+          ],
+          "handL": [
+            7,
+            23
+          ]
+        },
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            24,
+            23
+          ],
+          "handL": [
+            11,
+            15
+          ]
+        },
+        {
+          "head": [
+            16,
+            12
+          ],
+          "back": [
+            12,
+            21
+          ],
+          "handR": [
+            21,
+            14
+          ],
+          "handL": [
+            11,
+            14
+          ]
+        },
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            25,
+            22
+          ],
+          "handL": [
+            7,
+            23
+          ]
+        }
+      ]
+    },
+    "snap": {
+      "row": 24,
+      "frames": 2,
+      "fps": 6,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            25,
+            22
+          ],
+          "handL": [
+            11,
+            26
+          ]
+        },
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            21,
+            15
+          ],
+          "handL": [
+            11,
+            26
+          ]
+        }
+      ]
+    }
+  }
+}

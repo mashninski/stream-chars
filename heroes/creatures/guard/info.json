@@ -1,0 +1,39 @@
+{
+  "title": "Стражнік",
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 2
+    },
+    "walk": {
+      "row": 1,
+      "frames": 4,
+      "fps": 8
+    },
+    "run": {
+      "row": 2,
+      "frames": 4,
+      "fps": 12
+    },
+    "attack": {
+      "row": 3,
+      "frames": 2,
+      "fps": 8
+    },
+    "grab": {
+      "row": 4,
+      "frames": 2,
+      "fps": 4
+    },
+    "hit": {
+      "row": 5,
+      "frames": 2,
+      "fps": 8,
+      "loop": false
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 32,
+  "frameHeight": 32
+}

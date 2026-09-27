@@ -1,0 +1,11 @@
+{
+  "title": "Капялюш-цыліндр",
+  "weight": 1,
+  "anchor": [
+    7,
+    9
+  ],
+  "image": "sheet.png",
+  "frameWidth": 14,
+  "frameHeight": 11
+}

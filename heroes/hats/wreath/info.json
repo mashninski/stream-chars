@@ -1,0 +1,11 @@
+{
+  "title": "Вянок",
+  "weight": 1,
+  "anchor": [
+    6,
+    4
+  ],
+  "image": "sheet.png",
+  "frameWidth": 14,
+  "frameHeight": 7
+}

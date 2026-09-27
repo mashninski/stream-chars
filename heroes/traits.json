@@ -1,0 +1,77 @@
+{
+  "traits": [
+    {
+      "id": "class",
+      "title": "Клас",
+      "type": "item",
+      "category": "classes",
+      "appears": "firstSeen",
+      "pick": "weights",
+      "admin": true,
+      "points": true
+    },
+    {
+      "id": "sex",
+      "title": "Пол",
+      "type": "choice",
+      "values": {
+        "m": { "title": "мужчынскі", "weight": 1 },
+        "f": { "title": "жаночы", "weight": 1 }
+      },
+      "appears": "firstSeen",
+      "pick": "weights",
+      "admin": true,
+      "points": true
+    },
+    {
+      "id": "color",
+      "title": "Колер курткі",
+      "type": "color",
+      "appears": "firstSeen",
+      "pick": "farColor",
+      "admin": true,
+      "points": true
+    },
+    {
+      "id": "hat",
+      "title": "Галаўны ўбор",
+      "type": "item",
+      "category": "hats",
+      "optional": true,
+      "appears": "follow",
+      "pick": "weights",
+      "admin": true,
+      "points": true,
+      "layer": { "z": 50, "anchor": "head" }
+    },
+    {
+      "id": "wings",
+      "title": "Крылы",
+      "type": "item",
+      "category": "wings",
+      "optional": true,
+      "appears": "subscription",
+      "pick": "tiers",
+      "admin": true,
+      "points": false,
+      "layer": { "z": 5, "anchor": "back" }
+    },
+    {
+      "id": "nameShown",
+      "title": "Нік бачны",
+      "type": "bool",
+      "appears": "firstMessage",
+      "admin": true,
+      "points": false
+    },
+    {
+      "id": "nameColor",
+      "title": "Колер ніка",
+      "type": "color",
+      "optional": true,
+      "appears": "twitch",
+      "admin": false,
+      "points": false
+    }
+  ]
+}

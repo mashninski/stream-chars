@@ -4,20 +4,10 @@
 // - 'join' (viewer, entrance) — персонаж выходит на экран, entrance — способ появления;
 // - 'leave' (viewer) — уходит с экрана;
 // - 'queue' (список) — очередь изменилась;
-// - 'character', 'unknownCharacter' — см. методы;
+// - 'traits' (viewer) — у героя на экране поменялись признаки;
 // - 'act' (viewer, action, params) — действие у персонажа (реакция, сцена, облако с текстом).
 import { EventEmitter } from 'node:events';
-
-// Случайное имя по весам: { edge: 1, poof: 2 } → 'poof' в два раза чаще.
-function weighted(weights, rand) {
-  const entries = Object.entries(weights ?? {}).filter(([, w]) => typeof w === 'number' && w > 0);
-  const total = entries.reduce((sum, [, w]) => sum + w, 0);
-  let r = rand() * total;
-  for (const [name, w] of entries) {
-    if ((r -= w) < 0) return name;
-  }
-  return entries.at(-1)?.[0] ?? 'poof';
-}
+import { pickWeighted } from '../public/js/random.js';
 
 export class Viewers extends EventEmitter {
   #onScreen = new Map();
@@ -28,18 +18,18 @@ export class Viewers extends EventEmitter {
   #raidCount = 0;
   #lastRaidAt = -Infinity;
   #store;
+  #heroes;
   #opts;
 
-  // store — закрепление зритель → персонаж (store.js).
+  // store — герои зрителей (store.js), heroes — признаки (heroes.js).
   // options: config() — текущие настройки ({ maxOnScreen, entrances, raid }; читаются в момент использования,
-  // поэтому правка из админки действует сразу); characters() — имена персонажей каталога (для рейдеров);
-  // now, rand, setTimeout, clearTimeout — подменяются в проверке.
-  constructor(store, options = {}) {
+  // поэтому правка из админки действует сразу); now, rand, setTimeout, clearTimeout — подменяются в проверке.
+  constructor(store, heroes, options = {}) {
     super();
     this.#store = store;
+    this.#heroes = heroes;
     this.#opts = {
       config: () => ({}),
-      characters: () => [],
       now: Date.now,
       rand: Math.random,
       setTimeout,
@@ -63,7 +53,7 @@ export class Viewers extends EventEmitter {
     const { now, rand } = this.#opts;
     const { raid, entrances } = this.#cfg();
     if (now() - this.#lastRaidAt < raid.parachuteWindowSeconds * 1000) return 'parachute';
-    return weighted(entrances, rand);
+    return pickWeighted(entrances, rand) ?? 'poof';
   }
 
   #show(viewer) {
@@ -83,12 +73,18 @@ export class Viewers extends EventEmitter {
     if (moved) this.emit('queue', this.queue());
   }
 
-  // viewer = { id, name }. id — ключ (в задаче 4 станет user_id Twitch), name — ник как есть.
-  // Место на экране есть — выходит; нет — в очередь. Уже на экране или в очереди — false.
-  // character = null, если каталог пуст.
+  // Цвета героев на экране (зрители и рейдеры) — для «дальнего цвета».
+  takenColors() {
+    return this.list().map((v) => v.traits?.color).filter(Boolean);
+  }
+
+  // viewer = { id, name }. id — user_id Twitch (тестовые — «test:<нік>»), name — ник как есть.
+  // Героя назначает хранилище при первом появлении. Место на экране есть — выходит; нет — в очередь.
+  // Уже на экране или в очереди — false.
   join({ id, name }) {
     if (this.#onScreen.has(id) || this.#queue.has(id)) return false;
-    const viewer = { id, name, character: this.#store.characterFor({ id, name }) };
+    const entry = this.#store.heroFor({ id, name }, this.takenColors());
+    const viewer = { id, name, traits: { ...entry.traits } };
     if (this.#onScreen.size < this.#cfg().maxOnScreen) {
       this.#show(viewer);
     } else {
@@ -98,24 +94,24 @@ export class Viewers extends EventEmitter {
     return true;
   }
 
-  // Смена персонажа: тестовая панель сейчас, команда `!перс` в задаче 5.
-  // Работает и для зрителя не на экране — выбор запоминается до его появления.
-  // Имя не из каталога — ничего не меняется, событие 'unknownCharacter'.
-  choose({ id, name }, characterName) {
-    const character = this.#store.setCharacter({ id, name }, characterName);
-    if (!character) {
-      this.emit('unknownCharacter', { id, name }, characterName);
-      return false;
-    }
-    const queued = this.#queue.get(id);
-    if (queued) {
-      queued.character = character;
-      this.emit('queue', this.queue());
-    }
-    const viewer = this.#onScreen.get(id);
-    if (viewer && viewer.character !== character) {
-      viewer.character = character;
-      this.emit('character', viewer);
+  // Зритель на экране или в очереди — объект viewer, иначе undefined.
+  find(id) {
+    return this.#onScreen.get(id) ?? this.#queue.get(id);
+  }
+
+  onScreen(id) {
+    return this.#onScreen.has(id);
+  }
+
+  // Поменять признак героя (админка, баллы, Twitch). Работает и для зрителя не на экране —
+  // запоминается до его появления. Неверное значение — false.
+  setTrait(id, traitId, value) {
+    if (!this.#store.setTrait(id, traitId, value)) return false;
+    const viewer = this.find(id);
+    if (viewer && viewer.traits[traitId] !== value) {
+      viewer.traits[traitId] = value;
+      if (this.#queue.has(id)) this.emit('queue', this.queue());
+      else this.emit('traits', viewer);
     }
     return true;
   }
@@ -144,22 +140,23 @@ export class Viewers extends EventEmitter {
     return true;
   }
 
-  // Рейд: канал-рейдер и число зрителей. Спускаются min(count, raid.maxCount) безымянных персонажей
-  // со случайными дизайнами, над каждым — ник канала. В лимит зрителей не входят, в store не пишутся.
+  // Рейд: канал-рейдер и число зрителей. Спускаются min(count, raid.maxCount) безымянных героев
+  // (случайный класс, пол и цвет, без убора и крыльев), над каждым — ник канала.
+  // В лимит зрителей не входят, в store не пишутся.
   // Новый рейд, пока гуляют прошлые рейдеры, — прошлые уходят: на экране не больше raid.maxCount рейдеров.
   // Возвращает, сколько спустилось.
   raid(channel, count) {
-    const { characters, rand, now } = this.#opts;
+    const { now } = this.#opts;
     const { raid } = this.#cfg();
     const n = Math.min(Math.floor(count), raid.maxCount);
     if (!channel || !(n > 0)) return 0;
     this.#endRaid();
     this.#lastRaidAt = now();
     const raidId = ++this.#raidCount;
-    const names = characters();
     for (let i = 0; i < n; i++) {
-      const character = names.length ? names[Math.floor(rand() * names.length)] : null;
-      const raider = { id: `raid-${raidId}-${i}`, name: channel, character, raider: true };
+      const traits = this.#heroes.newHero(this.takenColors());
+      traits.nameShown = true;
+      const raider = { id: `raid-${raidId}-${i}`, name: channel, traits, raider: true };
       this.#raiders.set(raider.id, raider);
       this.emit('join', raider, 'parachute');
     }

@@ -1,35 +1,24 @@
-// Оверлей: держит персонажей, двигает их (actor.js) и рисует (render.js).
+// Оверлей: держит героев, двигает их (actor.js) и рисует слоями (render.js, картинки — assets.js).
 import { Actor, REACTIONS } from './actor.js';
 import { drawActor, drawBubbles } from './render.js';
+import { Assets } from './assets.js';
 import { connect } from './connection.js';
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 const actors = new Map();
-// Листы персонажей: имя → { info, image }. Приходят с каталогом в 'state'.
-const sprites = new Map();
+// Картинки и каталог героев. Приходят с 'state'.
+let assets = new Assets();
 let world = null;
 
-function loadSprites(characters) {
-  sprites.clear();
-  for (const [name, info] of Object.entries(characters)) {
-    const image = new Image();
-    image.src = `/characters/${encodeURIComponent(name)}/sheet.png`;
-    sprites.set(name, { info, image });
-  }
-}
-
-// Длина анимации персонажа в секундах — логике нужна, чтобы знать, когда кончилось приземление.
-function animLength(character, anim) {
-  const a = sprites.get(character)?.info.animations[anim];
-  return a ? a.frames / a.fps : undefined;
-}
+// Длина анимации героя в секундах — логике нужна, чтобы знать, когда кончилось приземление.
+const animLength = (traits, anim) => assets.heroAnimLength(traits, anim);
 
 // entrance — способ появления, его выбирает программа; нет (восстановление списка) — стоит на месте.
 function add(viewer, entrance) {
   const actor = actors.get(viewer.id);
   if (actor) {
-    actor.character = viewer.character;
+    actor.traits = viewer.traits ?? actor.traits;
     return actor.stay();
   }
   actors.set(viewer.id, new Actor(viewer, world, { entrance, animLength }));
@@ -49,7 +38,7 @@ connect((msg) => {
     canvas.width = world.width;
     canvas.height = world.height;
     if (msg.type === 'config') return;
-    loadSprites(msg.characters ?? {});
+    assets = new Assets(msg.catalog);
     sync(msg.viewers);
   } else if (!world) {
     return;
@@ -57,9 +46,9 @@ connect((msg) => {
     add(msg.viewer, msg.entrance);
   } else if (msg.type === 'leave') {
     actors.get(msg.id)?.leave();
-  } else if (msg.type === 'character') {
+  } else if (msg.type === 'traits') {
     const actor = actors.get(msg.id);
-    if (actor) actor.character = msg.character;
+    if (actor) actor.traits = msg.traits;
   } else if (msg.type === 'act') {
     act(msg);
   }
@@ -87,7 +76,7 @@ function frame(now) {
     for (const actor of actors.values()) {
       actor.update(dt);
       if (actor.gone) actors.delete(actor.id);
-      else drawActor(ctx, actor, world, sprites.get(actor.character));
+      else drawActor(ctx, actor, world, assets);
     }
     drawBubbles(ctx, actors.values(), world);
   }

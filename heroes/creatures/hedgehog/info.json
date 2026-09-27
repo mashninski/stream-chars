@@ -1,0 +1,25 @@
+{
+  "title": "Вожык",
+  "group": "pet",
+  "weight": 1,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 2
+    },
+    "walk": {
+      "row": 1,
+      "frames": 4,
+      "fps": 8
+    },
+    "happy": {
+      "row": 2,
+      "frames": 2,
+      "fps": 6
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 13,
+  "frameHeight": 9
+}

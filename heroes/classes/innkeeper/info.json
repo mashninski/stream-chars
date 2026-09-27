@@ -1,0 +1,183 @@
+{
+  "title": "Карчмар",
+  "weight": 1,
+  "layers": {
+    "m": {
+      "body": "m-body.png",
+      "jacket": "m-jacket.png",
+      "decor": "m-decor.png"
+    },
+    "f": {
+      "body": "f-body.png",
+      "jacket": "f-jacket.png",
+      "decor": "f-decor.png"
+    }
+  },
+  "animations": {
+    "hug": {
+      "row": 23,
+      "frames": 2,
+      "fps": 4,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            24,
+            23
+          ],
+          "handL": [
+            7,
+            23
+          ]
+        },
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            25,
+            22
+          ],
+          "handL": [
+            7,
+            23
+          ]
+        }
+      ]
+    },
+    "push": {
+      "row": 24,
+      "frames": 4,
+      "fps": 8,
+      "anchors": [
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            25,
+            23
+          ],
+          "handL": [
+            24,
+            25
+          ]
+        },
+        {
+          "head": [
+            16,
+            15
+          ],
+          "back": [
+            12,
+            24
+          ],
+          "handR": [
+            25,
+            24
+          ],
+          "handL": [
+            24,
+            26
+          ]
+        },
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            25,
+            23
+          ],
+          "handL": [
+            24,
+            25
+          ]
+        },
+        {
+          "head": [
+            16,
+            15
+          ],
+          "back": [
+            12,
+            24
+          ],
+          "handR": [
+            25,
+            24
+          ],
+          "handL": [
+            24,
+            26
+          ]
+        }
+      ]
+    },
+    "slap": {
+      "row": 25,
+      "frames": 2,
+      "fps": 8,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            21,
+            15
+          ],
+          "handL": [
+            11,
+            26
+          ]
+        },
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            27,
+            23
+          ],
+          "handL": [
+            11,
+            26
+          ]
+        }
+      ]
+    }
+  }
+}

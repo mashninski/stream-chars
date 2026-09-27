@@ -1,0 +1,186 @@
+{
+  "title": "Злодзей",
+  "weight": 1,
+  "layers": {
+    "m": {
+      "body": "m-body.png",
+      "jacket": "m-jacket.png",
+      "decor": "m-decor.png"
+    },
+    "f": {
+      "body": "f-body.png",
+      "jacket": "f-jacket.png",
+      "decor": "f-decor.png"
+    }
+  },
+  "animations": {
+    "kneel": {
+      "row": 23,
+      "frames": 2,
+      "fps": 2,
+      "anchors": [
+        {
+          "head": [
+            16,
+            16
+          ],
+          "back": [
+            12,
+            25
+          ],
+          "handR": [
+            25,
+            28
+          ],
+          "handL": [
+            11,
+            29
+          ]
+        },
+        {
+          "head": [
+            16,
+            17
+          ],
+          "back": [
+            12,
+            26
+          ],
+          "handR": [
+            25,
+            29
+          ],
+          "handL": [
+            11,
+            30
+          ]
+        }
+      ]
+    },
+    "steal": {
+      "row": 24,
+      "frames": 2,
+      "fps": 6,
+      "anchors": [
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            25,
+            26
+          ],
+          "handL": [
+            11,
+            27
+          ]
+        },
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            20,
+            26
+          ],
+          "handL": [
+            11,
+            27
+          ]
+        }
+      ]
+    },
+    "flip": {
+      "row": 25,
+      "frames": 4,
+      "fps": 12,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            21,
+            15
+          ],
+          "handL": [
+            11,
+            15
+          ]
+        },
+        {
+          "head": [
+            18,
+            25,
+            90
+          ],
+          "back": [
+            9,
+            21
+          ],
+          "handR": [
+            16,
+            30
+          ],
+          "handL": [
+            16,
+            20
+          ]
+        },
+        {
+          "head": [
+            15,
+            30,
+            180
+          ],
+          "back": [
+            19,
+            21
+          ],
+          "handR": [
+            11,
+            28
+          ],
+          "handL": [
+            21,
+            28
+          ]
+        },
+        {
+          "head": [
+            13,
+            24,
+            270
+          ],
+          "back": [
+            22,
+            28
+          ],
+          "handR": [
+            15,
+            20
+          ],
+          "handL": [
+            15,
+            30
+          ]
+        }
+      ]
+    }
+  }
+}

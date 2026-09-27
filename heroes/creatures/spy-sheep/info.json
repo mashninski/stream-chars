@@ -1,0 +1,28 @@
+{
+  "title": "Авечка-шпіён",
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 2
+    },
+    "walk": {
+      "row": 1,
+      "frames": 4,
+      "fps": 8
+    },
+    "jump": {
+      "row": 2,
+      "frames": 2,
+      "fps": 6
+    },
+    "look": {
+      "row": 3,
+      "frames": 2,
+      "fps": 2
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 20,
+  "frameHeight": 16
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Вушанка",
+  "weight": 1,
+  "anchor": [
+    8,
+    6
+  ],
+  "image": "sheet.png",
+  "frameWidth": 16,
+  "frameHeight": 12
+}

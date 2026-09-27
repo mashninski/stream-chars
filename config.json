@@ -18,6 +18,20 @@
     "secondsPerChar": 0.05,
     "maxSeconds": 8
   },
+  "colors": {
+    "lightness": [0.6, 0.85],
+    "chroma": [0.1, 0.2],
+    "hueStep": 10,
+    "steps": 3
+  },
+  "tiers": {
+    "wings": [
+      { "months": 1, "value": "wings-1" },
+      { "months": 6, "value": "wings-2" },
+      { "months": 12, "value": "wings-3" }
+    ]
+  },
+  "weights": {},
   "raid": {
     "maxCount": 15,
     "staySeconds": 300,

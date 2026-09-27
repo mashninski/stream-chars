@@ -1,0 +1,104 @@
+{
+  "title": "Пастух",
+  "weight": 1,
+  "layers": {
+    "m": {
+      "body": "m-body.png",
+      "jacket": "m-jacket.png",
+      "decor": "m-decor.png"
+    },
+    "f": {
+      "body": "f-body.png",
+      "jacket": "f-jacket.png",
+      "decor": "f-decor.png"
+    }
+  },
+  "animations": {
+    "flute": {
+      "row": 23,
+      "frames": 2,
+      "fps": 4,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            21,
+            17
+          ],
+          "handL": [
+            22,
+            19
+          ]
+        },
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            21,
+            18
+          ],
+          "handL": [
+            22,
+            20
+          ]
+        }
+      ]
+    },
+    "read": {
+      "row": 24,
+      "frames": 2,
+      "fps": 2,
+      "anchors": [
+        {
+          "head": [
+            16,
+            13
+          ],
+          "back": [
+            12,
+            22
+          ],
+          "handR": [
+            25,
+            22
+          ],
+          "handL": [
+            24,
+            24
+          ]
+        },
+        {
+          "head": [
+            16,
+            14
+          ],
+          "back": [
+            12,
+            23
+          ],
+          "handR": [
+            25,
+            23
+          ],
+          "handL": [
+            24,
+            25
+          ]
+        }
+      ]
+    }
+  }
+}

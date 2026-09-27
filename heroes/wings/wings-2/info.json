@@ -1,0 +1,17 @@
+{
+  "title": "Крылы",
+  "anchor": [
+    15,
+    15
+  ],
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 3
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 18,
+  "frameHeight": 18
+}

@@ -184,12 +184,12 @@ export function wrapLines(text, measure, maxWidth, maxLines) {
 
 export class Actor {
   // entrance — имя из ENTRANCES; неизвестное — «пух».
-  // animLength(character, anim) — длина анимации персонажа в секундах или undefined (оверлей знает листы).
+  // animLength(traits, anim) — длина анимации героя в секундах или undefined (оверлей знает листы).
   constructor(viewer, world, { entrance = 'here', rand = Math.random, animLength = () => undefined } = {}) {
     this.id = viewer.id;
     this.name = viewer.name;
-    // Имя персонажа из каталога — какой спрайт рисовать. На поведение не влияет.
-    this.character = viewer.character;
+    // Признаки героя (класс, пол, цвет, убор…) — что рисовать. На поведение не влияет.
+    this.traits = viewer.traits ?? {};
     this.world = world;
     this.rand = rand;
     this.animLength = animLength;
@@ -362,7 +362,7 @@ export class Actor {
     }
     const s = STATES[this.state];
     if (s.once) {
-      const length = this.animLength(this.character, s.anim) ?? DEFAULT_ANIM_TIME;
+      const length = this.animLength(this.traits, s.anim) ?? DEFAULT_ANIM_TIME;
       if (this.stateTime >= length) this.next();
     } else {
       s.update?.(this, dt);

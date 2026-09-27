@@ -1,0 +1,10 @@
+{
+  "title": "Меч",
+  "anchor": [
+    2,
+    13
+  ],
+  "image": "sheet.png",
+  "frameWidth": 5,
+  "frameHeight": 15
+}

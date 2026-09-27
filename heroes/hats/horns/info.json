@@ -1,0 +1,11 @@
+{
+  "title": "Шлем з рагамі",
+  "weight": 1,
+  "anchor": [
+    7,
+    8
+  ],
+  "image": "sheet.png",
+  "frameWidth": 16,
+  "frameHeight": 10
+}

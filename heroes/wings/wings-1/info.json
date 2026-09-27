@@ -1,0 +1,17 @@
+{
+  "title": "Пёркі",
+  "anchor": [
+    11,
+    11
+  ],
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 2,
+      "fps": 3
+    }
+  },
+  "image": "sheet.png",
+  "frameWidth": 14,
+  "frameHeight": 14
+}
