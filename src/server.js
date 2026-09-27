@@ -2,18 +2,28 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Viewers } from './viewers.js';
 import { Catalog } from './characters.js';
 import { ViewerStore } from './store.js';
+import { root, readEnv } from './env.js';
+import { log } from './log.js';
+import { readJson } from './files.js';
+import { Settings } from './settings.js';
+import { watchStop, clearStopFile } from './lifecycle.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const env = readEnv();
+if (env.portGiven && !env.port) {
+  log.error('Порт — цэлы лік больш за 0.');
+  process.exit(1);
+}
+log.init({ dir: path.join(env.dataDir, 'logs') });
 const publicDir = path.join(root, 'public');
-const config = JSON.parse(await fs.readFile(path.join(root, 'config.json'), 'utf8'));
-const port = config.port;
+const settings = new Settings(readJson(path.join(root, 'config.json')), path.join(env.dataDir, 'settings.json'), log);
+// Порт — единственная настройка, которая требует перезапуска.
+const port = env.port ?? settings.get().port;
 const catalog = new Catalog(path.join(root, 'characters'));
-const store = new ViewerStore(path.join(root, 'data', 'viewers.json'), catalog);
+const store = new ViewerStore(path.join(env.dataDir, 'viewers.json'), catalog);
 
 const pages = {
   '/overlay': 'overlay.html',
@@ -88,10 +98,20 @@ const wss = new WebSocketServer({
 });
 
 const viewers = new Viewers(store, {
-  maxOnScreen: config.maxOnScreen,
-  entrances: config.entrances,
-  raid: config.raid,
+  config: () => settings.get(),
   characters: () => catalog.names(),
+});
+
+// Что нужно оверлею из настроек.
+function overlayConfig() {
+  const c = settings.get();
+  return { ...c.overlay, bubble: c.bubble };
+}
+
+// Настройки поменялись (админка) — оверлеям новые значения, очередь — по новому лимиту.
+settings.on('change', () => {
+  broadcast({ type: 'config', config: overlayConfig() });
+  viewers.refresh();
 });
 
 function broadcast(msg) {
@@ -103,32 +123,32 @@ function broadcast(msg) {
 
 viewers.on('join', (viewer, entrance) => {
   // Рейдеров много и с одним ником — в терминал одной строкой на весь рейд (см. 'raid' ниже).
-  if (!viewer.raider) console.log(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'}, з'яўленне: ${entrance})`);
+  if (!viewer.raider) log.info(`[join] ${viewer.name} (${viewer.character ?? 'без персанажа'}, з'яўленне: ${entrance})`);
   broadcast({ type: 'join', viewer, entrance });
 });
 viewers.on('leave', (viewer) => {
-  if (!viewer.raider) console.log(`[leave] ${viewer.name}`);
+  if (!viewer.raider) log.info(`[leave] ${viewer.name}`);
   broadcast({ type: 'leave', id: viewer.id });
 });
 viewers.on('queue', (queue) => {
-  console.log(`[чарга] ${queue.length ? queue.map((v) => v.name).join(', ') : 'пустая'}`);
+  log.info(`[чарга] ${queue.length ? queue.map((v) => v.name).join(', ') : 'пустая'}`);
   broadcast({ type: 'queue', queue });
 });
 viewers.on('character', (viewer) => {
-  console.log(`[перс] ${viewer.name} → ${viewer.character}`);
+  log.info(`[перс] ${viewer.name} → ${viewer.character}`);
   broadcast({ type: 'character', id: viewer.id, character: viewer.character });
 });
 viewers.on('unknownCharacter', (viewer, characterName) => {
-  console.log(`[перс] ${viewer.name}: персанажа «${characterName}» няма. Ёсць: ${catalog.names().join(', ')}`);
+  log.info(`[перс] ${viewer.name}: персанажа «${characterName}» няма. Ёсць: ${catalog.names().join(', ')}`);
 });
 viewers.on('act', (viewer, action, params) => {
-  console.log(`[act] ${viewer.name}: ${action}${params.text ? ` «${params.text}»` : ''}`);
+  log.info(`[act] ${viewer.name}: ${action}${params.text ? ` «${params.text}»` : ''}`);
   broadcast({ type: 'act', id: viewer.id, action, ...params });
 });
 
 // Сообщение в чате (сейчас — из тестовой панели): действие из "triggers.message" + облако с текстом.
 function chatMessage(id, text) {
-  return viewers.act(id, config.triggers?.message, { text });
+  return viewers.act(id, settings.get().triggers?.message, { text });
 }
 
 // Команды тестовой панели. Ник → id в нижнем регистре, как login в Twitch.
@@ -136,26 +156,26 @@ function handleTest(msg) {
   if (msg.action === 'raid') {
     const channel = String(msg.channel ?? '').trim().slice(0, 25);
     const n = viewers.raid(channel, Number(msg.count));
-    if (n) console.log(`[рэйд] ${channel}: ${msg.count} гледачоў, спускаецца ${n}, сыдуць праз ${viewers.raidStaySeconds} с`);
-    else console.log('[рэйд] трэба канал і лік больш за 0');
+    if (n) log.info(`[рэйд] ${channel}: ${msg.count} гледачоў, спускаецца ${n}, сыдуць праз ${viewers.raidStaySeconds} с`);
+    else log.info('[рэйд] трэба канал і лік больш за 0');
     return;
   }
   const name = String(msg.name ?? '').trim().slice(0, 25);
   if (!name) return;
   const id = name.toLowerCase();
-  if (msg.action === 'join' && !viewers.join({ id, name })) console.log(`[test] ${name} ужо на экране або ў чарзе`);
-  if (msg.action === 'leave' && !viewers.leave(id)) console.log(`[test] ${name} няма на экране`);
+  if (msg.action === 'join' && !viewers.join({ id, name })) log.info(`[test] ${name} ужо на экране або ў чарзе`);
+  if (msg.action === 'leave' && !viewers.leave(id)) log.info(`[test] ${name} няма на экране`);
   if (msg.action === 'message') {
     const text = String(msg.text ?? '').slice(0, 500) || 'тэставае паведамленне';
-    if (!chatMessage(id, text)) console.log(`[test] ${name} няма на экране`);
+    if (!chatMessage(id, text)) log.info(`[test] ${name} няма на экране`);
   }
   if (msg.action === 'character') viewers.choose({ id, name }, String(msg.character ?? ''));
 }
 
 wss.on('connection', (ws) => {
-  console.log(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
+  log.info(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
   // Новому клиенту (или перезагруженному оверлею) — настройки, каталог персонажей и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: { ...config.overlay, bubble: config.bubble }, characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
+  ws.send(JSON.stringify({ type: 'state', config: overlayConfig(), characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
 
   ws.on('message', (data) => {
     let msg;
@@ -166,22 +186,42 @@ wss.on('connection', (ws) => {
     }
     if (msg.type === 'test') handleTest(msg);
   });
-  ws.on('close', () => console.log(`[ws] кліент адлучыўся, засталося ${wss.clients.size}`));
+  ws.on('close', () => log.info(`[ws] кліент адлучыўся, засталося ${wss.clients.size}`));
 });
+
+// WebSocketServer повторяет ошибки HTTP-сервера; разбираем их один раз — ниже, у server.
+wss.on('error', () => {});
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Порт ${port} заняты. Магчыма, праграма ўжо запушчана ў іншым акне — зачыніце яго або змяніце "port" у config.json.`);
-  } else {
-    console.error(err);
+    // Второй экземпляр (скрипт OBS запустил, а программа уже работает) — тихо выходим.
+    log.info(`Порт ${port} заняты — праграма ўжо працуе (або порт заняты іншай праграмай). Гэты запуск спыняецца.`);
+    process.exit(0);
   }
+  log.error(err);
   process.exit(1);
 });
 
+// Остановка: Ctrl+C, закрылся OBS (--parent-pid), файл-сигнал stop.
+function shutdown(reason) {
+  log.info(`Праграма спыняецца: ${reason}.`);
+  for (const client of wss.clients) client.terminate();
+  server.close();
+  // Не ждём долгих соединений: всё важное уже записано на диск.
+  setTimeout(() => process.exit(0), 300).unref();
+}
+process.on('SIGINT', () => shutdown('Ctrl+C'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
 // Только localhost: оверлей нужен OBS на этом же компьютере, в сеть программа не смотрит.
 server.listen(port, '127.0.0.1', () => {
-  console.log('Праграма запушчана.');
-  console.log(`  Аверлэй для OBS:  http://localhost:${port}/overlay`);
-  console.log(`  Тэставая панэль:  http://localhost:${port}/test`);
-  console.log('Спыніць: Ctrl+C у гэтым акне.');
+  // Порт наш — прошлая программа уже вышла; её файл-сигнал stop ничей.
+  clearStopFile(env.dataDir);
+  watchStop({ dataDir: env.dataDir, parentPid: env.parentPid, onStop: shutdown });
+  log.info('Праграма запушчана.');
+  log.info(`  Аверлэй для OBS:  http://localhost:${port}/overlay`);
+  log.info(`  Тэставая панэль:  http://localhost:${port}/test`);
+  log.info(`  Папка даных:      ${env.dataDir}`);
+  if (env.parentPid) log.info(`  Спыніцца разам з працэсам ${env.parentPid}.`);
+  else log.info('Спыніць: Ctrl+C у гэтым акне.');
 });

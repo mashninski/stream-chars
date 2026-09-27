@@ -3,12 +3,13 @@
 // Формат: { "viewers": { "<id>": { "character": "<імя>", "name": "<последний ник>" } } }
 import fs from 'node:fs';
 import path from 'node:path';
+import { log } from './log.js';
+import { writeJsonAtomic } from './files.js';
 
 export class ViewerStore {
   #file;
   #catalog;
   #viewers = {};
-  #tmpCounter = 0;
 
   constructor(file, catalog) {
     this.#file = file;
@@ -27,34 +28,20 @@ export class ViewerStore {
       const data = JSON.parse(text);
       if (!data?.viewers || typeof data.viewers !== 'object') throw new Error('няма раздзела viewers');
       this.#viewers = data.viewers;
-      console.log(`Замацаваныя персанажы: ${Object.keys(this.#viewers).length} гледачоў з ${path.basename(this.#file)}`);
+      log.info(`Замацаваныя персанажы: ${Object.keys(this.#viewers).length} гледачоў з ${path.basename(this.#file)}`);
     } catch (err) {
       // Битый файл не перезаписываем: откладываем в сторону, чтобы его можно было починить руками.
       const aside = this.#file.replace(/\.json$/, `.broken-${Date.now()}.json`);
       fs.renameSync(this.#file, aside);
-      console.error(`${path.basename(this.#file)} пашкоджаны (${err.message}). Адкладзены ў ${path.basename(aside)}, пачынаем з пустога спісу.`);
+      log.error(`${path.basename(this.#file)} пашкоджаны (${err.message}). Адкладзены ў ${path.basename(aside)}, пачынаем з пустога спісу.`);
     }
   }
 
-  // Запись через временный файл и переименование: при сбое на диске остаётся
-  // либо старый файл, либо новый целиком, но не половина.
   #save() {
-    const tmp = `${this.#file}.tmp-${process.pid}-${++this.#tmpCounter}`;
     try {
-      fs.mkdirSync(path.dirname(this.#file), { recursive: true });
-      const fd = fs.openSync(tmp, 'w');
-      try {
-        fs.writeSync(fd, JSON.stringify({ viewers: this.#viewers }, null, 2) + '\n');
-        fs.fsyncSync(fd);
-      } finally {
-        fs.closeSync(fd);
-      }
-      fs.renameSync(tmp, this.#file);
+      writeJsonAtomic(this.#file, { viewers: this.#viewers });
     } catch (err) {
-      console.error(`Не атрымалася запісаць ${path.basename(this.#file)}: ${err.message}`);
-      try {
-        fs.rmSync(tmp, { force: true });
-      } catch {}
+      log.error(`Не атрымалася запісаць ${path.basename(this.#file)}: ${err.message}`);
     }
   }
 
@@ -75,7 +62,7 @@ export class ViewerStore {
     const entry = this.#viewers[viewer.id];
     let character = entry && this.#catalog.get(entry.character)?.name;
     if (!character) {
-      if (entry) console.log(`[перс] персанажа «${entry.character}» больш няма ў каталогу — ${viewer.name} атрымлівае новага`);
+      if (entry) log.info(`[перс] персанажа «${entry.character}» больш няма ў каталогу — ${viewer.name} атрымлівае новага`);
       character = this.#leastUsed();
       if (!character) return null;
     }

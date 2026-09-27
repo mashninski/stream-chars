@@ -43,10 +43,12 @@ function sync(list) {
 }
 
 connect((msg) => {
-  if (msg.type === 'state') {
-    world = msg.config;
+  if (msg.type === 'state' || msg.type === 'config') {
+    // Тот же объект, что у персонажей: новые настройки действуют на всех сразу.
+    world = Object.assign(world ?? {}, msg.config);
     canvas.width = world.width;
     canvas.height = world.height;
+    if (msg.type === 'config') return;
     loadSprites(msg.characters ?? {});
     sync(msg.viewers);
   } else if (!world) {

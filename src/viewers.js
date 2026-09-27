@@ -31,27 +31,37 @@ export class Viewers extends EventEmitter {
   #opts;
 
   // store — закрепление зритель → персонаж (store.js).
-  // options: maxOnScreen, entrances (веса способов появления), raid { maxCount, staySeconds, parachuteWindowSeconds },
-  // characters() — имена персонажей каталога (для рейдеров); now, rand, setTimeout, clearTimeout — подменяются в проверке.
+  // options: config() — текущие настройки ({ maxOnScreen, entrances, raid }; читаются в момент использования,
+  // поэтому правка из админки действует сразу); characters() — имена персонажей каталога (для рейдеров);
+  // now, rand, setTimeout, clearTimeout — подменяются в проверке.
   constructor(store, options = {}) {
     super();
     this.#store = store;
     this.#opts = {
-      maxOnScreen: 30,
-      entrances: { edge: 1, poof: 1, fall: 1 },
+      config: () => ({}),
       characters: () => [],
       now: Date.now,
       rand: Math.random,
       setTimeout,
       clearTimeout,
       ...options,
-      raid: { maxCount: 15, staySeconds: 300, parachuteWindowSeconds: 300, ...options.raid },
+    };
+  }
+
+  // Настройки со значениями по умолчанию.
+  #cfg() {
+    const c = this.#opts.config();
+    return {
+      maxOnScreen: c.maxOnScreen ?? 30,
+      entrances: c.entrances ?? { edge: 1, poof: 1, fall: 1 },
+      raid: { maxCount: 15, staySeconds: 300, parachuteWindowSeconds: 300, ...c.raid },
     };
   }
 
   // Способ появления: в окне после рейда — парашют, иначе случайный по весам из config.json.
   #entrance() {
-    const { now, raid, entrances, rand } = this.#opts;
+    const { now, rand } = this.#opts;
+    const { raid, entrances } = this.#cfg();
     if (now() - this.#lastRaidAt < raid.parachuteWindowSeconds * 1000) return 'parachute';
     return weighted(entrances, rand);
   }
@@ -64,7 +74,7 @@ export class Viewers extends EventEmitter {
   // Освободилось место — выходят первые из очереди.
   #promote() {
     let moved = false;
-    while (this.#onScreen.size < this.#opts.maxOnScreen && this.#queue.size) {
+    while (this.#onScreen.size < this.#cfg().maxOnScreen && this.#queue.size) {
       const [id, viewer] = this.#queue.entries().next().value;
       this.#queue.delete(id);
       this.#show(viewer);
@@ -79,7 +89,7 @@ export class Viewers extends EventEmitter {
   join({ id, name }) {
     if (this.#onScreen.has(id) || this.#queue.has(id)) return false;
     const viewer = { id, name, character: this.#store.characterFor({ id, name }) };
-    if (this.#onScreen.size < this.#opts.maxOnScreen) {
+    if (this.#onScreen.size < this.#cfg().maxOnScreen) {
       this.#show(viewer);
     } else {
       this.#queue.set(id, viewer);
@@ -139,7 +149,8 @@ export class Viewers extends EventEmitter {
   // Новый рейд, пока гуляют прошлые рейдеры, — прошлые уходят: на экране не больше raid.maxCount рейдеров.
   // Возвращает, сколько спустилось.
   raid(channel, count) {
-    const { raid, characters, rand, now } = this.#opts;
+    const { characters, rand, now } = this.#opts;
+    const { raid } = this.#cfg();
     const n = Math.min(Math.floor(count), raid.maxCount);
     if (!channel || !(n > 0)) return 0;
     this.#endRaid();
@@ -164,7 +175,12 @@ export class Viewers extends EventEmitter {
   }
 
   get raidStaySeconds() {
-    return this.#opts.raid.staySeconds;
+    return this.#cfg().raid.staySeconds;
+  }
+
+  // Настройки поменялись: лимит мог вырасти — выпустить ждущих из очереди.
+  refresh() {
+    this.#promote();
   }
 
   // Все, кто на экране: зрители и рейдеры (у рейдера raider: true).

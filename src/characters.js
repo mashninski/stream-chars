@@ -2,6 +2,7 @@
 // Читается один раз при запуске. Битый персонаж — сообщение в терминале и пропуск.
 import fs from 'node:fs';
 import path from 'node:path';
+import { log } from './log.js';
 
 export const REQUIRED_ANIMATIONS = ['idle', 'walk', 'jump', 'fall', 'land', 'shake', 'parachute'];
 
@@ -73,7 +74,7 @@ function loadOne(dir, name) {
     if (Number.isInteger(a?.row) && positiveInt(a?.frames) && a.fps > 0 && a.row < rows && a.frames <= cols) {
       clean[anim] = { row: a.row, frames: a.frames, fps: a.fps, loop: a.loop !== false };
     } else {
-      console.error(`Персанаж «${name}»: анімацыя «${anim}» з памылкай у character.json — прапушчана`);
+      log.error(`Персанаж «${name}»: анімацыя «${anim}» з памылкай у character.json — прапушчана`);
     }
   }
   return { name, frameWidth, frameHeight, animations: clean, sheetFile };
@@ -87,7 +88,7 @@ export class Catalog {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
-      console.error(`Няма папкі персанажаў: ${dir}`);
+      log.error(`Няма папкі персанажаў: ${dir}`);
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -97,11 +98,11 @@ export class Catalog {
         if (this.#byKey.has(key)) throw new Error(`паўтор назвы «${this.#byKey.get(key).name}»`);
         this.#byKey.set(key, loadOne(path.join(dir, entry.name), name));
       } catch (err) {
-        console.error(`Персанаж «${name}» прапушчаны: ${err.message}`);
+        log.error(`Персанаж «${name}» прапушчаны: ${err.message}`);
       }
     }
-    if (this.#byKey.size) console.log(`Персанажы (${this.#byKey.size}): ${this.names().join(', ')}`);
-    else console.error('Ніводнага персанажа не загружана — гледачы будуць без фігурак. Праверце папку characters/.');
+    if (this.#byKey.size) log.info(`Персанажы (${this.#byKey.size}): ${this.names().join(', ')}`);
+    else log.error('Ніводнага персанажа не загружана — гледачы будуць без фігурак. Праверце папку characters/.');
   }
 
   // Персонаж по имени, как его написал человек; нет такого — undefined.
