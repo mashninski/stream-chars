@@ -5,6 +5,9 @@
 // Не получилось создать (канал не компаньон и не партнёр, 403) — режим manual: награды заводит автор,
 // в админке связь «название награды → действие» (rewardLinks); отметить выполненными такие награды
 // программа не может (Twitch разрешает это только создавшему приложению).
+// Цену, название, описание и вкл/выкл можно менять и в админке, и в самом Twitch: при синхронизации
+// то, что в Twitch отличается от последнего отправленного программой (pushed), значит, поменяли руками
+// в Twitch — это забирается в настройки, а не затирается.
 import { EventEmitter } from 'node:events';
 import { readJson, writeJsonAtomic } from './files.js';
 
@@ -13,6 +16,7 @@ export const REWARD_LIMIT = 50;
 export class Rewards extends EventEmitter {
   #o;
   #ids = {}; // ключ награды в настройках → id в Twitch
+  #pushed = {}; // ключ → { title, cost, prompt, enabled } — что программа последний раз отправила в Twitch
   #used = undefined;
   #text = '';
   #ok = true;
@@ -24,7 +28,9 @@ export class Rewards extends EventEmitter {
     super();
     this.#o = deps;
     try {
-      this.#ids = readJson(deps.file)?.ids ?? {};
+      const saved = readJson(deps.file);
+      this.#ids = saved?.ids ?? {};
+      this.#pushed = saved?.pushed ?? {};
     } catch (err) {
       deps.log.error(`[узнагароды] ${err.message}`);
     }
@@ -41,7 +47,7 @@ export class Rewards extends EventEmitter {
   }
 
   #save() {
-    writeJsonAtomic(this.#o.file, { ids: this.#ids });
+    writeJsonAtomic(this.#o.file, { ids: this.#ids, pushed: this.#pushed });
   }
 
   // Описание награды для Twitch (Create/Update Custom Rewards).
@@ -78,6 +84,7 @@ export class Rewards extends EventEmitter {
     // Награды, удалённые руками в Twitch, забываем.
     const ownIds = new Set(own.map((r) => r.id));
     for (const [key, id] of Object.entries(this.#ids)) if (!ownIds.has(id)) delete this.#ids[key];
+    this.#adoptTwitchEdits(own);
     const config = settings.get().rewards ?? {};
     const notes = [];
     let created = 0;
@@ -87,6 +94,7 @@ export class Rewards extends EventEmitter {
       try {
         if (id) {
           await twitch.helix('PATCH', '/channel_points/custom_rewards', { query: { broadcaster_id: bid, id }, body: this.#body(r) });
+          this.#remember(key, r);
           updated++;
         } else if (r.enabled) {
           if (this.#used >= REWARD_LIMIT) {
@@ -95,6 +103,7 @@ export class Rewards extends EventEmitter {
           }
           const res = await twitch.helix('POST', '/channel_points/custom_rewards', { query: { broadcaster_id: bid }, body: this.#body(r) });
           this.#ids[key] = res.data.data[0].id;
+          this.#remember(key, r);
           this.#used++;
           created++;
         }
@@ -116,6 +125,38 @@ export class Rewards extends EventEmitter {
     log.info(`[узнагароды] ${text}`);
     this.#set(text, !notes.length);
     return { ok: true, data: text };
+  }
+
+  #remember(key, r) {
+    const b = this.#body(r);
+    this.#pushed[key] = { title: b.title, cost: b.cost, prompt: b.prompt, enabled: b.is_enabled };
+  }
+
+  // Своя награда в Twitch не такая, какой программа её отправила, — её поменяли в Twitch руками:
+  // новое значение — в настройки (админка покажет), чтобы следующая синхронизация его не затёрла.
+  #adoptTwitchEdits(own) {
+    const { settings, log } = this.#o;
+    const byId = new Map(own.map((r) => [r.id, r]));
+    const config = settings.get().rewards ?? {};
+    const patch = {};
+    for (const [key, id] of Object.entries(this.#ids)) {
+      const tw = byId.get(id);
+      const last = this.#pushed[key];
+      if (!tw || !last || !config[key]) continue;
+      const changed = {};
+      if (tw.cost !== last.cost) changed.cost = tw.cost;
+      if (tw.title !== last.title) changed.title = tw.title;
+      if ((tw.prompt ?? '') !== last.prompt) changed.prompt = tw.prompt ?? '';
+      if (tw.is_enabled !== last.enabled) changed.enabled = tw.is_enabled;
+      if (Object.keys(changed).length) patch[key] = changed;
+    }
+    if (!Object.keys(patch).length) return;
+    const res = settings.set({ rewards: patch });
+    for (const [key, changed] of Object.entries(patch)) {
+      const what = Object.entries(changed).map(([k, v]) => `${k} → ${v}`).join(', ');
+      if (res.ok) log.info(`[узнагароды] «${config[key].title}» зменена ў Twitch: ${what} — узята ў налады`);
+      else log.error(`[узнагароды] «${config[key].title}» зменена ў Twitch (${what}), але ў налады не ўзята: ${res.error}`);
+    }
   }
 
   // 403 при создании — канал не компаньон/партнёр: запасной режим.
