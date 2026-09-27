@@ -283,6 +283,10 @@ function makeApi(scene) {
       if (ok && seconds) actor.bubble.duration = Math.max(actor.bubble.duration, seconds);
       return ok;
     },
+    // Свет за героем и крупный ник на seconds (герой обращает на себя внимание).
+    highlight(actor, seconds = 3) {
+      actor.highlight = { time: 0, duration: seconds };
+    },
     // Ник выплывает из облака и встаёт над головой (сцена «первое слово»).
     showName(actor, seconds = 1.5) {
       actor.nameFloat = { time: 0, duration: seconds };

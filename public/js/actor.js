@@ -318,6 +318,8 @@ export class Actor {
     this.pendingLeave = false;
     // Облако с сообщением: { text, time, duration } или null. Не зависит от состояния.
     this.bubble = null;
+    // «Обратить на себя внимание» (сцена «Памахаць»): { time, duration } — свет за героем и крупный ник.
+    this.highlight = null;
     // Сцена, в которой участвует (scene-engine.js), её анимация, предметы в руках и прозрачность.
     this.scene = null;
     this.sceneAnim = null;
@@ -502,6 +504,7 @@ export class Actor {
   update(dt) {
     this.stateTime += dt;
     if (this.bubble && (this.bubble.time += dt) >= this.bubble.duration) this.bubble = null;
+    if (this.highlight && (this.highlight.time += dt) >= this.highlight.duration) this.highlight = null;
     // Уход ждёт конца реакции, но не дольше предела (сцену прерывает scene-engine.js).
     if (this.pendingLeave) {
       this.leaveWait += dt;

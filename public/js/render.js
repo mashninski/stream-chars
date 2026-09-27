@@ -70,6 +70,20 @@ export const EFFECTS = {
     }
     label(ctx, '#!', cx, cy - size * 0.95, '#ff5050', 16);
   },
+  // Большая стрелка над героем, остриём вниз: выплывает снизу и покачивается.
+  arrow(ctx, { cx, cy, size, s, time, p }) {
+    const rise = Math.min(1, time / 0.4);
+    const fade = p === null ? 1 : Math.min(1, (1 - p) * 6);
+    ctx.globalAlpha *= rise * fade;
+    const tip = cy - size * 0.95 - 40 * (1 - rise) - Math.abs(Math.sin(time * 5)) * 10;
+    const u = s * 2; // «пиксель» стрелки
+    const rows = [[0, 0], [-1, 1], [-2, 2], [-3, 3], [-4, 4], [-5, 5], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1]];
+    rows.forEach(([a, b], i) => {
+      const y = tip - (i + 1) * u;
+      for (let j = a - 1; j <= b + 1; j++) px(ctx, cx + j * u - u / 2, y, u, j < a || j > b ? '#000' : '#ffd83d');
+    });
+    for (let j = -2; j <= 2; j++) px(ctx, cx + j * u - u / 2, tip - (rows.length + 1) * u, u, '#000');
+  },
   zzz(ctx, { cx, cy, size, time }) {
     for (let i = 0; i < 3; i++) {
       const t = (time * 0.6 + i / 3) % 1;
@@ -378,6 +392,7 @@ export function drawActor(ctx, actor, world, assets) {
     }
     if (anchors.head && anchors.head[2] === undefined) headTop = Math.min(headTop, anchors.head[1] - 1);
     layers.sort((a, b) => a[0] - b[0]);
+    if (actor.highlight) drawGlow(ctx, actor.x, ground - size * 0.4, size, highlightK(actor.highlight));
     ctx.save();
     ctx.translate(Math.round(actor.x), Math.round(ground));
     if (actor.facing < 0) ctx.scale(-1, 1);
@@ -408,13 +423,34 @@ export function drawActor(ctx, actor, world, assets) {
     ctx.restore();
     return;
   }
-  drawName(ctx, actor.name, actor.x, top - 6, traits.nameColor);
+  const big = actor.highlight ? 1 + 0.6 * highlightK(actor.highlight) : 1;
+  drawName(ctx, actor.name, actor.x, top - 6, traits.nameColor, big);
+}
+
+// Сила подсветки 0–1: нарастает 0,3 с, держится, гаснет 0,5 с.
+function highlightK({ time, duration }) {
+  return Math.max(0, Math.min(1, time / 0.3, (duration - time) / 0.5));
+}
+
+// Тёплый свет за героем: мягкое пятно, светлее к середине.
+function drawGlow(ctx, x, y, size, k) {
+  if (k <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const r = size * 0.9;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(255, 230, 140, ${0.55 * k})`);
+  g.addColorStop(0.5, `rgba(255, 200, 90, ${0.25 * k})`);
+  g.addColorStop(1, 'rgba(255, 180, 60, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  ctx.restore();
 }
 
 // Ник над головой, его цветом, с тёмной обводкой — читается на любом фоне.
-export function drawName(ctx, text, x, bottom, color) {
+export function drawName(ctx, text, x, bottom, color, scale = 1) {
   ctx.save();
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold ${Math.round(22 * scale)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.lineJoin = 'round';

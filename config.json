@@ -19,8 +19,9 @@
     "shoutRadius": 300,
     "blastRadius": 140,
     "brawlGuests": 3,
-    "restSeconds": 8,
-    "firstWordThinkSeconds": 10
+    "restSeconds": 30,
+    "danceSeconds": 15,
+    "firstWordLookSeconds": 2
   },
   "reactions": {
     "panic": 3,
@@ -40,9 +41,9 @@
     "maxWidth": 280,
     "maxLines": 4,
     "fontSize": 16,
-    "minSeconds": 2,
+    "minSeconds": 7,
     "secondsPerChar": 0.05,
-    "maxSeconds": 8
+    "maxSeconds": 12
   },
   "colors": {
     "lightness": [0.6, 0.85],
