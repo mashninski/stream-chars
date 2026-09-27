@@ -177,7 +177,8 @@ export class Viewers extends EventEmitter {
     const raidId = ++this.#raidCount;
     for (let i = 0; i < n; i++) {
       const traits = this.#heroes.newHero(this.takenColors());
-      traits.nameShown = true;
+      // Над рейдерами — ник канала: признаки «после первого сообщения» (ник виден) — сразу.
+      for (const t of this.#heroes.traits) if (t.appears === 'firstMessage' && t.type === 'bool') traits[t.id] = true;
       const raider = { id: `raid-${raidId}-${i}`, name: channel, traits, raider: true };
       this.#raiders.set(raider.id, raider);
       this.emit('join', raider, 'parachute');

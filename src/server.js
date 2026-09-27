@@ -15,6 +15,7 @@ import { watchStop, clearStopFile } from './lifecycle.js';
 import { Scenes } from './scenes.js';
 import { Actions } from './actions.js';
 import { Admin } from './admin.js';
+import { Twitch } from './twitch.js';
 
 const env = readEnv();
 if (env.portGiven && !env.port) {
@@ -133,6 +134,29 @@ function adminViewer(id) {
 }
 log.on('line', (line) => broadcastAdmin({ type: 'log', line }));
 
+// ---------- Twitch ----------
+// Зрители из списка чата появляются и уходят; цвет ника; фолловер — при первом появлении за запуск.
+const twitch = new Twitch({ envFile: env.envFile, tokensFile: path.join(env.dataDir, 'twitch-tokens.json'), settings, log });
+twitch.on('join', async (u) => {
+  viewers.join({ id: u.id, name: u.name });
+  if (!store.get(u.id)?.flags.follower && (await twitch.isFollower(u.id))) actions.onFollow(u.id);
+});
+twitch.on('leave', (u) => viewers.leave(u.id));
+twitch.on('color', ({ id, color }) => actions.setChatColor(id, color));
+twitch.on('status', (s) => {
+  broadcastAdmin({ type: 'twitch', twitch: s });
+  broadcastAdmin({ type: 'status', status: admin.statusLines() });
+});
+admin.command('twitch.setClientId', ({ clientId }) => twitch.setClientId(clientId));
+admin.command('twitch.login', () => twitch.login());
+admin.command('twitch.cancel', () => twitch.cancel());
+admin.command('twitch.logout', () => twitch.logout());
+admin.extra('twitch', () => twitch.status());
+admin.status('twitch', () => {
+  const s = twitch.status();
+  return { title: 'Twitch', text: s.text, ok: s.connected ? (s.warnings.length ? 'warn' : true) : s.clientId ? 'warn' : false };
+});
+
 // Что нужно оверлею из настроек: полоса, облако, реакции, правила сцен и список сцен с весами случаев.
 function overlayConfig() {
   const c = settings.get();
@@ -204,7 +228,7 @@ function handleTest(msg) {
   // Сбросить «первое слово» — чтобы проверить сцену ещё раз.
   if (msg.action === 'resetFirstWord' && store.get(id)) {
     store.setFlags(id, { firstWord: false });
-    viewers.setTrait(id, 'nameShown', false);
+    for (const t of heroes.traits) if (t.appears === 'firstMessage' && t.type === 'bool') viewers.setTrait(id, t.id, false);
     log.info(`[test] ${name}: «першае слова» скінута`);
   }
   if (msg.action === 'trait') {
@@ -289,4 +313,5 @@ server.listen(port, '127.0.0.1', () => {
   log.info(`  Папка даных:      ${env.dataDir}`);
   if (env.parentPid) log.info(`  Спыніцца разам з працэсам ${env.parentPid}.`);
   else log.info('Спыніць: Ctrl+C у гэтым акне.');
+  twitch.start().catch((err) => log.error(`[twitch] ${err.message}`));
 });

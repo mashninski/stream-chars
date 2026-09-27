@@ -84,6 +84,60 @@ export class Actions {
     if (scene && this.#scenes.get(scene)) this.#viewers.act(id, scene, {}, { wait });
   }
 
+  // Признаки реестра, которые появляются по событию (appears): follow, subscription, firstMessage, twitch.
+  #traitsFor(appears, type) {
+    return this.#heroes.traits.filter((t) => t.appears === appears && (!type || t.type === type));
+  }
+
+  // Стал фолловером (при появлении по Get Channel Followers или событием channel.follow):
+  // флаг и признаки «за фолловинг» (убор) по весам, если их ещё нет, + сцена смены выгляда.
+  // Отписку Twitch не сообщает — убор остаётся. true — что-то поменялось.
+  onFollow(id) {
+    const entry = this.#store.get(id);
+    if (!entry) return false;
+    let changed = false;
+    if (!entry.flags.follower) {
+      this.#store.setFlags(id, { follower: true });
+      changed = true;
+    }
+    for (const t of this.#traitsFor('follow')) {
+      if (entry.traits[t.id] != null) continue;
+      const value = this.#heroes.pick(t.id);
+      if (value != null && this.#viewers.setTrait(id, t.id, value)) {
+        log.info(`[фалоўер] ${entry.name}: ${t.title.toLowerCase()} → ${value}`);
+        changed = true;
+      }
+    }
+    if (changed && this.#viewers.onScreen(id)) this.#playChange(id, false);
+    return changed;
+  }
+
+  // Подписка: месяцы (cumulative) и активна ли. Признаки «за подписку» (крылья) — по ступеням;
+  // подписка кончилась — прячутся (значение null), вернулась — снова по ступеням.
+  onSubscription(id, months, active) {
+    const entry = this.#store.get(id);
+    if (!entry) return false;
+    // Без подписки месяцы не теряются: вернётся — крылья по прежней ступени (или выше).
+    const m = active ? Math.max(Number(months) || 0, entry.flags.subMonths) : entry.flags.subMonths;
+    this.#store.setFlags(id, { subMonths: m, subActive: !!active });
+    let changed = false;
+    for (const t of this.#traitsFor('subscription')) {
+      const value = active ? this.#heroes.pick(t.id, { months: m }) : null;
+      if (entry.traits[t.id] !== value && this.#viewers.setTrait(id, t.id, value)) {
+        log.info(`[падпіска] ${entry.name}: ${m} мес., ${t.title.toLowerCase()} → ${value ?? 'схаваны'}`);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  // Цвет ника из Twitch — в признаки цвета, которые приходят из Twitch (appears 'twitch').
+  setChatColor(id, color) {
+    for (const t of this.#traitsFor('twitch', 'color')) {
+      if (this.#store.get(id)?.traits[t.id] !== color) this.#viewers.setTrait(id, t.id, color);
+    }
+  }
+
   // Сообщение в чате. Первое за всё время (зритель на экране) — сцена «первое слово» (triggers.firstMessage)
   // и ник виден с этого момента; дальше — triggers.message и облако с текстом. Команды (!…) — без облака
   // и не «первое слово». Не на экране — ничего не играет. true — зритель на экране.
@@ -95,9 +149,11 @@ export class Actions {
     if (!entry.flags.firstWord && !isCommand && triggers.firstMessage && this.#scenes.get(triggers.firstMessage)) {
       this.#store.setFlags(id, { firstWord: true });
       // Ник показывает сама сцена (выплывает из облака) — оверлею признак отдельно не шлём.
-      this.#store.setTrait(id, 'nameShown', true);
       const viewer = this.#viewers.find(id);
-      if (viewer) viewer.traits.nameShown = true;
+      for (const t of this.#traitsFor('firstMessage', 'bool')) {
+        this.#store.setTrait(id, t.id, true);
+        if (viewer) viewer.traits[t.id] = true;
+      }
       log.info(`[першае слова] ${entry.name}`);
       this.#viewers.act(id, triggers.firstMessage, { text });
       return true;

@@ -7,6 +7,7 @@ import { percentages } from '../public/js/random.js';
 export class Admin {
   #commands = new Map();
   #status = new Map();
+  #extra = new Map();
   #deps;
 
   // deps: settings, store, viewers, heroes, scenes, actions, log, clients() — сколько оверлеев и админок.
@@ -39,6 +40,11 @@ export class Admin {
 
   command(name, fn) {
     this.#commands.set(name, fn);
+  }
+
+  // Дополнительный раздел состояния для док-панели (twitch, rewards): fn() → объект.
+  extra(name, fn) {
+    this.#extra.set(name, fn);
   }
 
   // Строка состояния в разделе «Стан»: fn() → { title, text, ok }.
@@ -110,6 +116,7 @@ export class Admin {
       specials: Object.fromEntries(classes.map((c) => [c.id, scenes.specials(c.id).map((s) => ({ id: s.id, title: s.title }))])),
       commonActions: scenes.actions().map((s) => ({ id: s.id, title: s.title })),
       log: this.#deps.log.lines(),
+      ...Object.fromEntries([...this.#extra].map(([name, fn]) => [name, fn()])),
     };
   }
 }

@@ -70,6 +70,11 @@
   },
   "rewardMode": "auto",
   "rewardLinks": {},
+  "twitch": {
+    "pollSeconds": 60,
+    "leaveAfterPolls": 3,
+    "ignore": ["nightbot", "streamelements", "streamlabs", "moobot", "fossabot", "wizebot", "sery_bot", "soundalerts", "streamstickers", "commanderroot", "botrixoficial"]
+  },
   "raid": {
     "maxCount": 15,
     "staySeconds": 300,
