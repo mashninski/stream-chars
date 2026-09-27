@@ -16,6 +16,9 @@ import { Scenes } from './scenes.js';
 import { Actions } from './actions.js';
 import { Admin } from './admin.js';
 import { Twitch } from './twitch.js';
+import { EventSub } from './eventsub.js';
+import { Rewards } from './rewards.js';
+import { wireTwitchEvents } from './twitch-events.js';
 
 const env = readEnv();
 if (env.portGiven && !env.port) {
@@ -144,14 +147,42 @@ twitch.on('join', async (u) => {
 twitch.on('leave', (u) => viewers.leave(u.id));
 twitch.on('color', ({ id, color }) => actions.setChatColor(id, color));
 twitch.on('status', (s) => {
-  broadcastAdmin({ type: 'twitch', twitch: s });
+  broadcastAdmin({ type: 'twitch', twitch: { ...s, eventsub: eventsub.status() } });
   broadcastAdmin({ type: 'status', status: admin.statusLines() });
 });
 admin.command('twitch.setClientId', ({ clientId }) => twitch.setClientId(clientId));
 admin.command('twitch.login', () => twitch.login());
 admin.command('twitch.cancel', () => twitch.cancel());
 admin.command('twitch.logout', () => twitch.logout());
-admin.extra('twitch', () => twitch.status());
+admin.extra('twitch', () => ({ ...twitch.status(), eventsub: eventsub.status() }));
+
+// ---------- EventSub и награды ----------
+const eventsub = new EventSub({ twitch, log });
+const rewards = new Rewards({
+  twitch, settings, store, viewers, actions, log,
+  file: path.join(env.dataDir, 'twitch-rewards.json'),
+  isFollower: (id) => twitch.isFollower(id),
+});
+wireTwitchEvents({ eventsub, twitch, store, viewers, actions, rewards, settings, log });
+twitch.on('connected', () => {
+  eventsub.start();
+  if (settings.get().rewardMode === 'auto') rewards.sync();
+});
+twitch.on('disconnected', () => eventsub.stop());
+eventsub.on('status', () => broadcastAdmin({ type: 'twitch', twitch: { ...twitch.status(), eventsub: eventsub.status() } }));
+rewards.on('status', (s) => broadcastAdmin({ type: 'rewards', rewards: s }));
+admin.command('rewards.sync', () => rewards.sync());
+admin.extra('rewards', () => rewards.status());
+// Правка наград в админке — в Twitch через 2 с после последней правки (режим auto, вход выполнен).
+let rewardsTimer = null;
+let lastRewards = JSON.stringify(settings.get().rewards);
+settings.on('change', (c) => {
+  const now = JSON.stringify(c.rewards);
+  if (now === lastRewards) return;
+  lastRewards = now;
+  clearTimeout(rewardsTimer);
+  if (twitch.connected && c.rewardMode === 'auto') rewardsTimer = setTimeout(() => rewards.sync(), 2000);
+});
 admin.status('twitch', () => {
   const s = twitch.status();
   return { title: 'Twitch', text: s.text, ok: s.connected ? (s.warnings.length ? 'warn' : true) : s.clientId ? 'warn' : false };

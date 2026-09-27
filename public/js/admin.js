@@ -218,6 +218,12 @@ function renderTwitch() {
   }
   if (tw.user) box.append(el('div', { class: 'row' }, 'Канал: ', el('b', {}, tw.user), el('button', { onclick: () => run('twitch.logout') }, 'Выйсці')));
   if (tw.scopes) box.append(el('div', { class: 'muted' }, `Правы: ${tw.scopes.join(', ')}`));
+  const es = tw.eventsub;
+  if (tw.user && es) {
+    box.append(el('div', { class: 'status-line' }, el('span', { class: `dot ${es.connected && !es.failed.length ? 'ok' : 'warn'}` }),
+      el('span', {}, `Падзеі (EventSub): ${es.connected ? `падпісак ${es.subscribed.length} з ${es.subscribed.length + es.failed.length}` : 'не падлучана'}`)));
+    for (const f of [...es.failed, ...es.revoked.map((r) => `адклікана: ${r}`)]) box.append(el('div', { class: 'error' }, f));
+  }
   for (const w of tw.warnings ?? []) box.append(el('div', { class: 'error' }, w));
   box.append(err);
 }
