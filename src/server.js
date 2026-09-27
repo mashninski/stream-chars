@@ -121,10 +121,15 @@ viewers.on('character', (viewer) => {
 viewers.on('unknownCharacter', (viewer, characterName) => {
   console.log(`[перс] ${viewer.name}: персанажа «${characterName}» няма. Ёсць: ${catalog.names().join(', ')}`);
 });
-viewers.on('message', (viewer, text) => {
-  console.log(`[message] ${viewer.name}: ${text}`);
-  broadcast({ type: 'message', id: viewer.id, text });
+viewers.on('act', (viewer, action, params) => {
+  console.log(`[act] ${viewer.name}: ${action}${params.text ? ` «${params.text}»` : ''}`);
+  broadcast({ type: 'act', id: viewer.id, action, ...params });
 });
+
+// Сообщение в чате (сейчас — из тестовой панели): действие из "triggers.message" + облако с текстом.
+function chatMessage(id, text) {
+  return viewers.act(id, config.triggers?.message, { text });
+}
 
 // Команды тестовой панели. Ник → id в нижнем регистре, как login в Twitch.
 function handleTest(msg) {
@@ -140,14 +145,17 @@ function handleTest(msg) {
   const id = name.toLowerCase();
   if (msg.action === 'join' && !viewers.join({ id, name })) console.log(`[test] ${name} ужо на экране або ў чарзе`);
   if (msg.action === 'leave' && !viewers.leave(id)) console.log(`[test] ${name} няма на экране`);
-  if (msg.action === 'message' && !viewers.message(id, 'тэставае паведамленне')) console.log(`[test] ${name} няма на экране`);
+  if (msg.action === 'message') {
+    const text = String(msg.text ?? '').slice(0, 500) || 'тэставае паведамленне';
+    if (!chatMessage(id, text)) console.log(`[test] ${name} няма на экране`);
+  }
   if (msg.action === 'character') viewers.choose({ id, name }, String(msg.character ?? ''));
 }
 
 wss.on('connection', (ws) => {
   console.log(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
   // Новому клиенту (или перезагруженному оверлею) — настройки, каталог персонажей и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: config.overlay, characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
+  ws.send(JSON.stringify({ type: 'state', config: { ...config.overlay, bubble: config.bubble }, characters: catalog.toClient(), viewers: viewers.list(), queue: viewers.queue() }));
 
   ws.on('message', (data) => {
     let msg;

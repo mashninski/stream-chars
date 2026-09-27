@@ -1,6 +1,6 @@
 // Оверлей: держит персонажей, двигает их (actor.js) и рисует (render.js).
-import { Actor } from './actor.js';
-import { drawActor } from './render.js';
+import { Actor, REACTIONS } from './actor.js';
+import { drawActor, drawBubbles } from './render.js';
 import { connect } from './connection.js';
 
 const canvas = document.getElementById('stage');
@@ -58,10 +58,21 @@ connect((msg) => {
   } else if (msg.type === 'character') {
     const actor = actors.get(msg.id);
     if (actor) actor.character = msg.character;
-  } else if (msg.type === 'message') {
-    actors.get(msg.id)?.react('jump');
+  } else if (msg.type === 'act') {
+    act(msg);
   }
 });
+
+// Действие от программы: { id, action, text?, seed? }. Кто прислал (чат, награда, панель) — оверлей не знает.
+// Текст — облако; action — реакция (REACTIONS в actor.js). Незнакомое действие — пропуск со строкой в консоли.
+function act({ id, action, text }) {
+  const actor = actors.get(id);
+  if (!actor) return;
+  if (text) actor.say(text);
+  if (!action) return;
+  if (REACTIONS[action]) actor.react(action);
+  else console.log(`[act] незнаёмае дзеянне «${action}» — прапушчана`);
+}
 
 let last = performance.now();
 function frame(now) {
@@ -76,6 +87,7 @@ function frame(now) {
       if (actor.gone) actors.delete(actor.id);
       else drawActor(ctx, actor, world, sprites.get(actor.character));
     }
+    drawBubbles(ctx, actors.values(), world);
   }
   requestAnimationFrame(frame);
 }

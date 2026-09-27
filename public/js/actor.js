@@ -124,6 +124,64 @@ export const REACTIONS = {
   },
 };
 
+// ---------- облако с сообщением ----------
+// Значения — world.bubble (config.json → "bubble"). Рисует render.js, здесь — только что и сколько.
+
+const BUBBLE_DEFAULTS = { maxChars: 100, maxWidth: 280, maxLines: 4, minSeconds: 2, secondsPerChar: 0.05, maxSeconds: 8 };
+
+// Текст облака: пробелы схлопнуты, длиннее maxChars — обрезан по слову с «…» (вместе с «…» не длиннее maxChars).
+// Команда (начинается с «!») и пустое сообщение — null: облака нет.
+export function bubbleText(text, maxChars = BUBBLE_DEFAULTS.maxChars) {
+  const clean = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!clean || clean.startsWith('!')) return null;
+  const chars = [...clean]; // по символам, а не по половинкам смайлов
+  if (chars.length <= maxChars) return clean;
+  let cut = chars.slice(0, maxChars - 1).join('');
+  const space = cut.lastIndexOf(' ');
+  // Слово очень длинное — режем посреди него, иначе от текста мало что останется.
+  if (space > cut.length / 2) cut = cut.slice(0, space);
+  return cut.trimEnd() + '…';
+}
+
+// Сколько висит облако, с.
+export function bubbleSeconds(text, b = BUBBLE_DEFAULTS) {
+  return Math.min(b.maxSeconds, b.minSeconds + b.secondsPerChar * [...text].length);
+}
+
+// Перенос по словам: строки не шире maxWidth (measure(строка) → ширина в px), не больше maxLines.
+// Слово шире строки режется по буквам. Не влезло — последняя строка кончается «…».
+export function wrapLines(text, measure, maxWidth, maxLines) {
+  const lines = [];
+  let line = '';
+  const push = (s) => lines.push(s);
+  for (const word of text.split(' ')) {
+    const tryLine = line ? `${line} ${word}` : word;
+    if (measure(tryLine) <= maxWidth) {
+      line = tryLine;
+      continue;
+    }
+    if (line) push(line);
+    line = '';
+    // Слово не влезает даже одно — по буквам.
+    let piece = '';
+    for (const ch of word) {
+      if (measure(piece + ch) > maxWidth && piece) {
+        push(piece);
+        piece = '';
+      }
+      piece += ch;
+    }
+    line = piece;
+  }
+  if (line) push(line);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  let last = kept[maxLines - 1];
+  while (last && measure(last + '…') > maxWidth) last = [...last].slice(0, -1).join('');
+  kept[maxLines - 1] = last.trimEnd() + '…';
+  return kept;
+}
+
 export class Actor {
   // entrance — имя из ENTRANCES; неизвестное — «пух».
   // animLength(character, anim) — длина анимации персонажа в секундах или undefined (оверлей знает листы).
@@ -146,6 +204,8 @@ export class Actor {
     this.reaction = null;
     // Уйти, как только встанет на землю (пришёл leave во время падения или облачка).
     this.pendingLeave = false;
+    // Облако с сообщением: { text, time, duration } или null. Не зависит от состояния.
+    this.bubble = null;
     const start = ENTRANCES[entrance] ?? ENTRANCES.poof;
     this.entrance = ENTRANCES[entrance] ? entrance : 'poof';
     start(this);
@@ -253,6 +313,16 @@ export class Actor {
     return true;
   }
 
+  // Облако с текстом сообщения. Новое заменяет старое. Показывается в любом состоянии
+  // (даже когда прыжок невозможен). Команда «!…» или пустой текст — облака нет, false.
+  say(text) {
+    const b = { ...BUBBLE_DEFAULTS, ...this.world.bubble };
+    const shown = bubbleText(text, b.maxChars);
+    if (!shown) return false;
+    this.bubble = { text: shown, time: 0, duration: bubbleSeconds(shown, b) };
+    return true;
+  }
+
   get gone() {
     return this.state === 'gone';
   }
@@ -285,6 +355,7 @@ export class Actor {
   // dt — секунды с прошлого кадра.
   update(dt) {
     this.stateTime += dt;
+    if (this.bubble && (this.bubble.time += dt) >= this.bubble.duration) this.bubble = null;
     if (this.reaction) {
       this.reaction.time += dt;
       if (this.reaction.time >= REACTIONS[this.reaction.name].time(this.world)) this.reaction = null;

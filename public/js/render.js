@@ -1,6 +1,7 @@
 // Рисование персонажа спрайтом из characters/<імя>/sheet.png. Логика (actor.js) сюда не входит:
 // какую анимацию играть, на какой высоте и с каким эффектом — говорит сам персонаж.
 // Кадры в листе смотрят вправо; влево — зеркало. Низ кадра стоит на линии земли.
+import { wrapLines } from './actor.js';
 
 // Эффекты вокруг персонажа — рисуются программно, без файлов графики.
 // Новый эффект — запись здесь и `effect: '<имя>'` у состояния в actor.js.
@@ -35,6 +36,7 @@ function frameOf(anim, time) {
 }
 
 // sprite = { info: { frameWidth, frameHeight, animations }, image } или undefined, пока лист не загружен.
+// Запоминает у персонажа actor.drawTop — верх надписи над ним (для облака, drawBubbles).
 export function drawActor(ctx, actor, world, sprite) {
   const s = world.scale;
   const ground = world.strip.groundY - actor.drawY;
@@ -62,6 +64,7 @@ export function drawActor(ctx, actor, world, sprite) {
 
   const effect = actor.effect;
   if (effect) EFFECTS[effect.name]?.(ctx, { cx: actor.x, cy: ground - size / 2, size, s, time: effect.time, world });
+  actor.drawTop = Math.round(top) - 6 - 22;
   if (!actor.visible) return;
 
   // Ник над головой, с тёмной обводкой — читается на любом фоне.
@@ -76,4 +79,65 @@ export function drawActor(ctx, actor, world, sprite) {
   const nameY = Math.round(top) - 6;
   ctx.strokeText(actor.name, nameX, nameY);
   ctx.fillText(actor.name, nameX, nameY);
+}
+
+// ---------- облака с сообщениями ----------
+// Отдельным проходом после всех персонажей — облака поверх всех. Только canvas (fillText):
+// чужой текст не может стать разметкой.
+
+const BUBBLE_PAD = 8;
+const BUBBLE_TAIL = 8;
+
+// Строки облака считаются один раз на текст (measureText недешёвый).
+const wrapCache = new WeakMap();
+
+export function drawBubbles(ctx, actors, world) {
+  const b = world.bubble ?? {};
+  const fontSize = b.fontSize ?? 16;
+  const lineH = Math.round(fontSize * 1.25);
+  ctx.save();
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  for (const actor of actors) {
+    const bubble = actor.bubble;
+    if (!bubble || actor.drawTop === undefined) continue;
+    let lines = wrapCache.get(bubble);
+    if (!lines) {
+      lines = wrapLines(bubble.text, (t) => ctx.measureText(t).width, b.maxWidth ?? 280, b.maxLines ?? 4);
+      wrapCache.set(bubble, lines);
+    }
+    const textW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+    const w = Math.ceil(textW) + BUBBLE_PAD * 2;
+    const h = lines.length * lineH + BUBBLE_PAD * 2;
+    // Над ником; у края экрана облако сдвигается внутрь, хвостик остаётся над персонажем.
+    const tipX = Math.round(actor.x);
+    const bottom = Math.max(h + BUBBLE_TAIL, actor.drawTop - 2);
+    const left = Math.round(Math.min(Math.max(tipX - w / 2, 4), world.width - w - 4));
+    const top = bottom - BUBBLE_TAIL - h;
+    // Последние 0,3 с — тает.
+    ctx.globalAlpha = Math.min(1, (bubble.duration - bubble.time) / 0.3);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#1b1b1b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(left, top, w, h, 8);
+    ctx.fill();
+    ctx.stroke();
+    // Хвостик к голове.
+    const tx = Math.min(Math.max(tipX, left + 12), left + w - 12);
+    ctx.beginPath();
+    ctx.moveTo(tx - 6, top + h - 1);
+    ctx.lineTo(tx, bottom);
+    ctx.lineTo(tx + 6, top + h - 1);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tx - 6, top + h);
+    ctx.lineTo(tx, bottom);
+    ctx.lineTo(tx + 6, top + h);
+    ctx.stroke();
+    ctx.fillStyle = '#1b1b1b';
+    lines.forEach((line, i) => ctx.fillText(line, left + BUBBLE_PAD, top + BUBBLE_PAD + i * lineH));
+  }
+  ctx.restore();
 }

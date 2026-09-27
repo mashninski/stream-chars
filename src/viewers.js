@@ -4,7 +4,8 @@
 // - 'join' (viewer, entrance) — персонаж выходит на экран, entrance — способ появления;
 // - 'leave' (viewer) — уходит с экрана;
 // - 'queue' (список) — очередь изменилась;
-// - 'character', 'unknownCharacter', 'message' — см. методы.
+// - 'character', 'unknownCharacter' — см. методы;
+// - 'act' (viewer, action, params) — действие у персонажа (реакция, сцена, облако с текстом).
 import { EventEmitter } from 'node:events';
 
 // Случайное имя по весам: { edge: 1, poof: 2 } → 'poof' в два раза чаще.
@@ -123,11 +124,13 @@ export class Viewers extends EventEmitter {
     return true;
   }
 
-  // Реакция только у тех, кто на экране.
-  message(id, text) {
+  // Действие у персонажа — общий путь для всех источников (чат, награда, панель).
+  // action — имя реакции или сцены, params — { text?, seed? }. Какое действие у какого источника —
+  // в настройках ("triggers"), источник не знает, какие действия есть. Пока только у тех, кто на экране.
+  act(id, action, params = {}) {
     const viewer = this.#onScreen.get(id);
     if (!viewer) return false;
-    this.emit('message', viewer, text);
+    this.emit('act', viewer, action, params);
     return true;
   }
 

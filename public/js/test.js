@@ -3,6 +3,7 @@
 import { connect } from './connection.js';
 
 const nameInput = document.getElementById('name');
+const textInput = document.getElementById('text');
 const characterSelect = document.getElementById('character');
 const channelInput = document.getElementById('channel');
 const raidCount = document.getElementById('raidCount');
@@ -80,7 +81,7 @@ for (const button of document.querySelectorAll('button[data-action]')) {
   button.onclick = () => {
     const name = nameInput.value.trim();
     if (!name) return nameInput.focus();
-    send({ type: 'test', action: button.dataset.action, name, character: characterSelect.value });
+    send({ type: 'test', action: button.dataset.action, name, character: characterSelect.value, text: textInput.value });
   };
 }
 
@@ -90,7 +91,12 @@ document.getElementById('raid').onclick = () => {
   send({ type: 'test', action: 'raid', channel, count: Number(raidCount.value) });
 };
 
-// Enter в поле — «Дадаць гледача».
+// Enter в поле текста — «Паведамленне».
+textInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.querySelector('button[data-action="message"]').click();
+});
+
+// Enter в поле ника — «Дадаць гледача».
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.querySelector('button[data-action="join"]').click();
 });
