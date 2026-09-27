@@ -1,10 +1,10 @@
 {
   "title": "Бутэлька віна",
   "anchor": [
-    2,
-    6
+    6,
+    18
   ],
   "image": "sheet.png",
-  "frameWidth": 4,
-  "frameHeight": 9
+  "frameWidth": 12,
+  "frameHeight": 27
 }

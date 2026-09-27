@@ -1,10 +1,10 @@
 {
   "title": "Пакет дакументаў",
   "anchor": [
-    4,
-    3
+    12,
+    9
   ],
   "image": "sheet.png",
-  "frameWidth": 8,
-  "frameHeight": 6
+  "frameWidth": 24,
+  "frameHeight": 18
 }

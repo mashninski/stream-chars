@@ -10,3 +10,6 @@ desktop.ini
 # зависимости и данные программы
 node_modules/
 data/
+
+# сырые картинки автора (генерации Gemini) — не в git
+art-raw/

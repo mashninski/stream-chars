@@ -1,10 +1,10 @@
 {
   "title": "Кап'ё",
   "anchor": [
-    2,
-    16
+    6,
+    48
   ],
   "image": "sheet.png",
-  "frameWidth": 5,
-  "frameHeight": 22
+  "frameWidth": 15,
+  "frameHeight": 66
 }

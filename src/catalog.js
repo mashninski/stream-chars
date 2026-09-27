@@ -166,7 +166,9 @@ export class Catalog {
     const { frameWidth: fw, frameHeight: fh } = this.body;
     if (!info.layers || typeof info.layers !== 'object') throw new Error('"layers" — раздзел { варыянт: { слой: файл } }');
     const own = cleanAnimations(info.animations, where);
-    const merged = { ...this.body.animations, ...own };
+    // "bodyAnimations": false — у класса свои позы на все анимации (своя графика, `claude/heroes-plan.md`):
+    // строки листа — только его, общие строки body.json не подмешиваются; нет анимации — запасная.
+    const merged = info.bodyAnimations === false ? own : { ...this.body.animations, ...own };
     item.layers = {};
     let rows = Infinity;
     let cols = Infinity;

@@ -1,10 +1,10 @@
 {
   "title": "Кубак",
   "anchor": [
-    2,
-    3
+    6,
+    9
   ],
   "image": "sheet.png",
-  "frameWidth": 5,
-  "frameHeight": 6
+  "frameWidth": 15,
+  "frameHeight": 18
 }

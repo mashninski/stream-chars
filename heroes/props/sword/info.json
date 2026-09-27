@@ -1,10 +1,10 @@
 {
   "title": "Меч",
   "anchor": [
-    2,
-    13
+    6,
+    39
   ],
   "image": "sheet.png",
-  "frameWidth": 5,
-  "frameHeight": 15
+  "frameWidth": 15,
+  "frameHeight": 45
 }

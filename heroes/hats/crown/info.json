@@ -2,10 +2,10 @@
   "title": "Карона",
   "weight": 1,
   "anchor": [
-    7,
-    7
+    21,
+    21
   ],
   "image": "sheet.png",
-  "frameWidth": 14,
-  "frameHeight": 9
+  "frameWidth": 42,
+  "frameHeight": 27
 }

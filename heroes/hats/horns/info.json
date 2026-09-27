@@ -2,10 +2,10 @@
   "title": "Шлем з рагамі",
   "weight": 1,
   "anchor": [
-    7,
-    8
+    21,
+    24
   ],
   "image": "sheet.png",
-  "frameWidth": 16,
-  "frameHeight": 10
+  "frameWidth": 48,
+  "frameHeight": 30
 }

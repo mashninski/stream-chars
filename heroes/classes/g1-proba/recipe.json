@@ -1,0 +1,383 @@
+{
+  "title": "Пастух (Г1, проба)",
+  "weight": 0,
+  "variants": {
+    "f": {
+      "flatRed": "#b3302a",
+      "poses": [
+        "poses/f-list1",
+        "poses/f-list0"
+      ],
+      "animations": {
+        "idle": {
+          "fps": 2,
+          "frames": [
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            }
+          ]
+        },
+        "walk": {
+          "fps": 8,
+          "frames": [
+            {
+              "pose": "walk_1"
+            },
+            {
+              "pose": "walk_2"
+            },
+            {
+              "pose": "walk_3"
+            },
+            {
+              "pose": "walk_4"
+            }
+          ],
+          "head": "walk_1"
+        },
+        "run": {
+          "fps": 12,
+          "frames": [
+            {
+              "pose": "run_1"
+            },
+            {
+              "pose": "run_2"
+            },
+            {
+              "pose": "run_3"
+            },
+            {
+              "pose": "run_4"
+            }
+          ],
+          "head": "run_2"
+        }
+      }
+    },
+    "m": {
+      "poses": [
+        "poses/m-list1",
+        "poses/m-list0"
+      ],
+      "animations": {
+        "idle": {
+          "fps": 2,
+          "frames": [
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_far",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_scratch",
+              "flip": true
+            },
+            {
+              "pose": "idle_scratch",
+              "flip": true
+            },
+            {
+              "pose": "idle_scratch",
+              "flip": true
+            },
+            {
+              "pose": "idle_scratch",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true
+            },
+            {
+              "pose": "idle_hip",
+              "flip": true,
+              "breathe": 1
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_yawn",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            },
+            {
+              "pose": "idle_lean",
+              "flip": true
+            }
+          ]
+        },
+        "walk": {
+          "fps": 8,
+          "frames": [
+            {
+              "pose": "walk_1"
+            },
+            {
+              "pose": "walk_2"
+            },
+            {
+              "pose": "walk_3"
+            },
+            {
+              "pose": "walk_2"
+            }
+          ]
+        },
+        "run": {
+          "fps": 12,
+          "frames": [
+            {
+              "pose": "run_1"
+            },
+            {
+              "pose": "run_2"
+            },
+            {
+              "pose": "run_3"
+            },
+            {
+              "pose": "run_4"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

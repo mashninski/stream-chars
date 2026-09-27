@@ -1,18 +1,22 @@
 // Импорт сгенерированной графики (лист эмоций / поз — сетка клеток на однотонном фоне) в листы героя.
 //
 //   node scripts/import-art.js --in лист.png --cols 4 --rows 2 \
-//     --names think,joy,panic,angry,drunk,sleep,rub_eyes,knocked --out heroes/classes/warrior --prefix m
+//     --height 90 --names think,joy,panic,angry,drunk,sleep,rub_eyes,knocked --out heroes/classes/warrior/poses --prefix m-list3
 //
-// Шаги: PNG → нарезка по сетке → фон по цвету-ключу в прозрачность → обрезка по персонажу →
-// одно уменьшение на все клетки (одинаковый масштаб) ближайшим соседом до кадра тела → ноги на нижнюю
-// строку, персонаж по середине → сведение к палитре (N цветов) → серые пиксели куртки — в отдельную маску.
+// Шаги: PNG → фон и зеленоватая кайма в прозрачность → пятна персонажей по клеткам сетки (по середине пятна:
+// посох, заехавший к соседу, остаётся своим) → одно уменьшение на все клетки (одинаковый масштаб) «большинством»
+// → ноги на нижнюю строку, середина куртки (туловище) по середине кадра → сведение к палитре (N цветов)
+// → серые пиксели куртки — в отдельную маску.
 // Пишет в папку --out: <prefix>-body.png, <prefix>-jacket.png (строка на клетку, по кадру в строке)
-// и <prefix>-import.json (какая строка какая анимация) — дальше их сводят в листы класса.
+// и <prefix>-import.json (какая строка какая поза) — дальше их сводит в листы класса scripts/build-class.js.
 //
 // Параметры (по умолчанию):
 //   --key #00ff00          цвет фона, станет прозрачным;   --key-tolerance 90  насколько близко к нему (0–441)
-//   --frame 32x32          размер кадра (по умолчанию — из heroes/body.json)
-//   --palette 16           сколько цветов оставить у тела (0 — не сводить)
+//   --key-spill 12         кайма: пиксель, где канал ключа сильнее двух других больше чем на столько, — фон
+//   --frame 96x96          размер кадра (по умолчанию — из heroes/body.json)
+//   --height 90            рост героя в кадре по обычной позе (медиана клеток); без него — крупнейшая поза во весь кадр
+//   --resample majority    уменьшение: majority — частый цвет квадрата (чище), nearest — середина квадрата
+//   --palette 32           сколько цветов оставить у тела (0 — не сводить)
 //   --jacket #808080       цвет куртки на картинке (нейтрально-серый); --jacket-tolerance 70 по яркости,
 //   --jacket-chroma 28     насколько серым должен быть пиксель (разница каналов), --no-jacket — без маски
 //   --names                имена анимаций по клеткам, слева направо и сверху вниз; «-» — клетку пропустить
@@ -133,7 +137,7 @@ export function importArt(opts) {
   const jacketKey = hex(opts.jacket ?? '#808080');
   const jacketTol = Number(opts['jacket-tolerance'] ?? 70);
   const jacketChroma = Number(opts['jacket-chroma'] ?? 28);
-  const paletteSize = Number(opts.palette ?? 16);
+  const paletteSize = Number(opts.palette ?? 32);
 
   const cw = Math.floor(input.width / cols);
   const ch = Math.floor(input.height / rows);
@@ -141,51 +145,143 @@ export function importArt(opts) {
     const o = (y * input.width + x) * 4;
     return [input.pixels[o], input.pixels[o + 1], input.pixels[o + 2], input.pixels[o + 3]];
   };
-  const isBg = (p) => p[3] < 128 || dist(p, key) <= keyTol;
+  // Кайма: у ключа один главный канал (#00ff00 — зелёный); пиксель, где он заметно сильнее двух других, —
+  // смесь с фоном (сжатие, сглаживание края). У персонажа такого цвета нет по правилам стиля.
+  const keyCh = key.indexOf(Math.max(...key));
+  const spill = Number(opts['key-spill'] ?? 12);
+  const isBg = (p) => p[3] < 128 || dist(p, key) <= keyTol || p[keyCh] - Math.max(...p.slice(0, 3).filter((_, i) => i !== keyCh)) > spill;
 
-  // 1. Клетки: где персонаж (рамка по непрозрачным пикселям).
+  // 1. Клетки. Персонаж = связные пятна не-фона, середина которых лежит в клетке: посох, заехавший
+  //    в соседнюю клетку, остаётся со своим героем, а кусок чужого посоха не попадает. Линии сетки
+  //    (пятно тоньше 4 пикселей или длиннее полутора клеток) — выбрасываются.
+  const W = input.width, H = input.height;
+  const label = new Int32Array(W * H).fill(-1);
+  const blobs = [];
+  for (let i = 0; i < W * H; i++) {
+    if (label[i] >= 0 || isBg(at(i % W, (i / W) | 0))) continue;
+    const b = { x0: Infinity, y0: Infinity, x1: -1, y1: -1, n: 0, sx: 0, sy: 0 };
+    const id = blobs.length;
+    const stack = [i];
+    label[i] = id;
+    while (stack.length) {
+      const j = stack.pop();
+      const x = j % W, y = (j / W) | 0;
+      b.n++; b.sx += x; b.sy += y;
+      if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y;
+      for (const k of [j - 1, j + 1, j - W, j + W]) {
+        if (k < 0 || k >= W * H || label[k] >= 0) continue;
+        if ((k === j - 1 && x === 0) || (k === j + 1 && x === W - 1)) continue;
+        if (isBg(at(k % W, (k / W) | 0))) continue;
+        label[k] = id;
+        stack.push(k);
+      }
+    }
+    blobs.push(b);
+  }
+  const cellOf = blobs.map((b) => {
+    const bw = b.x1 - b.x0 + 1, bh = b.y1 - b.y0 + 1;
+    if (bw < 4 || bh < 4 || bw > cw * 1.5 || bh > ch * 1.5) return -1;
+    const c = Math.min(cols - 1, Math.floor(b.sx / b.n / cw));
+    const r = Math.min(rows - 1, Math.floor(b.sy / b.n / ch));
+    return r * cols + c;
+  });
   const cells = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const name = names[r * cols + c];
       if (name === '-') continue;
+      const idx = r * cols + c;
       let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
-      // Отступ в 2 пикселя от краёв клетки: там бывают линии сетки.
-      for (let y = r * ch + 2; y < (r + 1) * ch - 2; y++) {
-        for (let x = c * cw + 2; x < (c + 1) * cw - 2; x++) {
-          if (isBg(at(x, y))) continue;
-          x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
-        }
-      }
+      blobs.forEach((b, i) => {
+        if (cellOf[i] !== idx) return;
+        x0 = Math.min(x0, b.x0); y0 = Math.min(y0, b.y0); x1 = Math.max(x1, b.x1); y1 = Math.max(y1, b.y1);
+      });
       if (x1 < 0) throw new Error(`клетка ${r + 1}×${c + 1} («${name}») пустая — няма нічога, акрамя фону`);
-      cells.push({ name, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+      cells.push({ name, idx, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
     }
   }
-  // 2. Один масштаб на все клетки: персонаж одного размера в каждой позе.
-  const scale = Math.min(...cells.map((c) => Math.min(fw / c.w, fh / c.h)));
+  // Пиксель принадлежит персонажу клетки, только если он из её пятен.
+  const mine = (cell, x, y) => cellOf[label[y * W + x]] === cell.idx;
 
-  // 3. Ближайший сосед: каждый пиксель кадра берёт середину своего квадрата на картинке.
+  // 2. Один масштаб на все клетки: персонаж одного размера в каждой позе. --height — рост героя в кадре
+  //    по «обычной» клетке (медиана высот клеток: большинство поз — стоя); без него — самая крупная поза во весь кадр.
+  const sortedH = cells.map((c) => c.h).sort((a, b) => a - b);
+  const refH = sortedH[Math.floor(sortedH.length / 2)];
+  // --grid N — картинка нарисована «пикселями» по N точек: уменьшение ровно в N раз, пиксель в пиксель
+  // (без муара: узор пояса и повязки не «мигает» между кадрами). Иначе — --height или весь кадр.
+  const scale = opts.grid
+    ? 1 / Number(opts.grid)
+    : opts.height
+      ? Number(opts.height) / refH
+      : Math.min(...cells.map((c) => Math.min(fw / c.w, fh / c.h)));
+  if (!(scale > 0)) throw new Error('--grid / --height — лік больш за 0');
+  const nearestMode = opts.resample === 'nearest';
+
+  // 3. Уменьшение. «Большинство» (по умолчанию): пиксель кадра — самый частый цвет своего квадрата на картинке,
+  //    пустой, если фона в квадрате больше половины; «nearest» — середина квадрата.
   const bodyFrames = [];
   const jacketFrames = [];
+  const placed = [];
+  const lumKey = lum(...jacketKey);
+  const isJacket = (p) => useJacket && Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) <= jacketChroma && Math.abs(lum(p[0], p[1], p[2]) - lumKey) <= jacketTol;
+  const sample = (cell, tx, ty) => {
+    if (nearestMode) {
+      const sx = Math.min(cell.x0 + cell.w - 1, cell.x0 + Math.floor((tx + 0.5) / scale));
+      const sy = Math.min(cell.y0 + cell.h - 1, cell.y0 + Math.floor((ty + 0.5) / scale));
+      const p = at(sx, sy);
+      return isBg(p) || !mine(cell, sx, sy) ? null : p;
+    }
+    const bx0 = cell.x0 + Math.floor(tx / scale), bx1 = Math.max(bx0, Math.min(cell.x0 + cell.w, cell.x0 + Math.floor((tx + 1) / scale)) - 1);
+    const by0 = cell.y0 + Math.floor(ty / scale), by1 = Math.max(by0, Math.min(cell.y0 + cell.h, cell.y0 + Math.floor((ty + 1) / scale)) - 1);
+    const count = new Map();
+    let n = 0, fgN = 0;
+    for (let y = by0; y <= by1; y++) {
+      for (let x = bx0; x <= bx1; x++) {
+        n++;
+        const p = at(x, y);
+        if (isBg(p) || !mine(cell, x, y)) continue;
+        fgN++;
+        const q = ((p[0] >> 4) << 8) | ((p[1] >> 4) << 4) | (p[2] >> 4);
+        const e = count.get(q) ?? { k: 0, r: 0, g: 0, b: 0 };
+        e.k++; e.r += p[0]; e.g += p[1]; e.b += p[2];
+        count.set(q, e);
+      }
+    }
+    if (fgN * 2 < n) return null;
+    let best = null;
+    for (const e of count.values()) if (!best || e.k > best.k) best = e;
+    return [Math.round(best.r / best.k), Math.round(best.g / best.k), Math.round(best.b / best.k), 255];
+  };
   for (const cell of cells) {
     const tw = Math.max(1, Math.round(cell.w * scale));
     const th = Math.max(1, Math.round(cell.h * scale));
-    const offX = Math.floor((fw - tw) / 2);
+    const small = [];
+    let jx = 0, jn = 0;
+    for (let ty = 0; ty < th; ty++) {
+      for (let tx = 0; tx < tw; tx++) {
+        const p = sample(cell, tx, ty);
+        small.push(p);
+        if (p && isJacket(p)) { jx += tx; jn++; }
+      }
+    }
+    // По горизонтали — середина куртки (туловище) на середину кадра: предмет в руке (посох) не сдвигает
+    // героя между позами. Без куртки — середина рамки.
+    const offX = jn ? Math.round(fw / 2 - (jx / jn + 0.5)) : Math.floor((fw - tw) / 2);
     const offY = fh - th; // ноги — на нижнюю строку
+    if (tw > fw || th > fh || offX < 0 || offX + tw > fw) {
+      console.warn(`увага: «${cell.name}» (${tw}×${th}) не ўлазіць у кадр ${fw}×${fh} — край абрэзаны`);
+    }
     const body = new Uint8Array(fw * fh * 4);
     const jacket = new Uint8Array(fw * fh * 4);
     for (let ty = 0; ty < th; ty++) {
       for (let tx = 0; tx < tw; tx++) {
-        const sx = Math.min(cell.x0 + cell.w - 1, cell.x0 + Math.floor((tx + 0.5) / scale));
-        const sy = Math.min(cell.y0 + cell.h - 1, cell.y0 + Math.floor((ty + 0.5) / scale));
-        const p = at(sx, sy);
-        if (isBg(p)) continue;
-        const o = ((offY + ty) * fw + offX + tx) * 4;
-        const chroma = Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]);
-        const l = lum(p[0], p[1], p[2]);
-        if (useJacket && chroma <= jacketChroma && Math.abs(l - lum(...jacketKey)) <= jacketTol) {
+        const p = small[ty * tw + tx];
+        const fx = offX + tx, fy = offY + ty;
+        if (!p || fx < 0 || fy < 0 || fx >= fw || fy >= fh) continue;
+        const o = (fy * fw + fx) * 4;
+        if (isJacket(p)) {
           // Серый куртки → маска: яркость ключа куртки становится MASK_BASE, тени и блики — вокруг.
-          const g = Math.max(0, Math.min(255, Math.round(MASK_BASE + (l - lum(...jacketKey)))));
+          const g = Math.max(0, Math.min(255, Math.round(MASK_BASE + (lum(p[0], p[1], p[2]) - lumKey))));
           jacket.set([g, g, g, 255], o);
         } else {
           body.set([p[0], p[1], p[2], 255], o);
@@ -194,6 +290,7 @@ export function importArt(opts) {
     }
     bodyFrames.push(body);
     jacketFrames.push(jacket);
+    placed.push({ name: cell.name, w: tw, h: th, x: offX, y: offY });
   }
   // 4. Палитра тела.
   const palette = paletteOf(bodyFrames, paletteSize);
@@ -219,8 +316,8 @@ export function importArt(opts) {
   fs.writeFileSync(path.join(outDir, `${prefix}-body.png`), sheet(bodyFrames));
   if (useJacket) fs.writeFileSync(path.join(outDir, `${prefix}-jacket.png`), sheet(jacketFrames));
   const animations = Object.fromEntries(cells.map((c, row) => [c.name, { row, frames: 1, fps: 1 }]));
-  fs.writeFileSync(path.join(outDir, `${prefix}-import.json`), JSON.stringify({ frameWidth: fw, frameHeight: fh, scale, palette, animations }, null, 2) + '\n');
-  return { fw, fh, scale, palette, cells, bodyFrames, jacketFrames };
+  fs.writeFileSync(path.join(outDir, `${prefix}-import.json`), JSON.stringify({ frameWidth: fw, frameHeight: fh, scale, palette, placed, animations }, null, 2) + '\n');
+  return { fw, fh, scale, palette, cells, placed, bodyFrames, jacketFrames };
 }
 
 // ---------- самопроверка ----------

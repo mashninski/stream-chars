@@ -273,19 +273,20 @@ export const EFFECTS = {
 // Эффекты сцен: у сущности (at — следует за ней, dy — выше её середины) или в точке (x, y над землёй).
 export function drawSceneEffects(ctx, effects, world, assets) {
   const s = world.scale;
+  const sa = world.spriteScale ?? 1;
   for (const e of effects) {
     const fn = EFFECTS[e.name];
     if (!fn) continue;
     let cx = e.x;
     let cy = world.strip.groundY - (e.y ?? 0);
-    let size = (assets.body?.frameHeight ?? 32) * s;
+    let size = (assets.body?.frameHeight ?? 96) * sa;
     if (e.at) {
       const t = e.at;
       const item = t.category ? assets.item(t.category, t.id) : null;
-      size = item ? Math.max(item.frameWidth, item.frameHeight) * s : size;
+      size = item ? Math.max(item.frameWidth, item.frameHeight) * sa : size;
       const feet = world.strip.groundY - (t.drawY ?? t.y ?? 0);
       cx = t.x;
-      cy = feet - (item ? item.frameHeight * s : size) / 2;
+      cy = feet - (item ? item.frameHeight * sa : size) / 2;
     }
     ctx.save();
     fn(ctx, { cx, cy: cy - (e.dy ?? 0), size, s, time: e.time, p: e.duration ? Math.min(1, e.time / e.duration) : null, data: e.data, world });
@@ -348,15 +349,16 @@ const HELD_Z = 60;
 // Герой. assets — Assets (картинки и каталог). Запоминает у персонажа actor.drawTop — верх надписи
 // над ним (для облака, drawBubbles).
 export function drawActor(ctx, actor, world, assets) {
-  const s = world.scale;
+  const s = world.scale; // пиксель эффектов
+  const sa = world.spriteScale ?? 1; // пиксель спрайтов
   const ground = world.strip.groundY - actor.drawY;
   const body = assets.body;
   const traits = actor.traits ?? {};
   const cls = assets.item('classes', traits.class);
-  const fw = body?.frameWidth ?? 32;
-  const fh = body?.frameHeight ?? 32;
-  let headTop = fh - 20; // верх головы в пикселях кадра (пока нет графики — примерно)
-  const size = Math.max(fw, fh) * s;
+  const fw = body?.frameWidth ?? 96;
+  const fh = body?.frameHeight ?? 96;
+  let headTop = Math.round(fh * 0.4); // верх головы в пикселях кадра (нет точки head — примерно)
+  const size = Math.max(fw, fh) * sa;
 
   if (cls && actor.visible) {
     const want = actor.animation;
@@ -372,7 +374,7 @@ export function drawActor(ctx, actor, world, assets) {
     const layers = [];
     for (const [layer, url] of Object.entries(variant)) {
       const img = layer === 'jacket' ? assets.tinted(url, traits.color) : assets.image(url);
-      if (img) layers.push([CLASS_Z[layer] ?? 30, () => drawClassLayer(ctx, img, anim, frame, fw, fh, s)]);
+      if (img) layers.push([CLASS_Z[layer] ?? 30, () => drawClassLayer(ctx, img, anim, frame, fw, fh, sa)]);
     }
     // Признаки со слоем (убор, крылья…): предмет категории признака по точке привязки.
     for (const t of assets.traits) {
@@ -380,7 +382,7 @@ export function drawActor(ctx, actor, world, assets) {
       const item = assets.item(t.category, traits[t.id]);
       const p = item && pt(t.layer.anchor);
       if (!p) continue;
-      layers.push([t.layer.z, () => drawItemAt(ctx, assets, item, p[0], p[1], p[2], s, want.time)]);
+      layers.push([t.layer.z, () => drawItemAt(ctx, assets, item, p[0], p[1], p[2], sa, want.time)]);
       if (t.layer.anchor === 'head') headTop = Math.min(headTop, anchors.head[1] - item.anchor[1]);
     }
     // Предметы в руках (сцены): actor.held = { handR: 'props/sword', … }.
@@ -388,7 +390,7 @@ export function drawActor(ctx, actor, world, assets) {
       const [category, id] = String(ref).split('/');
       const item = assets.item(category, id);
       const p = item && pt(anchor);
-      if (p) layers.push([HELD_Z, () => drawItemAt(ctx, assets, item, p[0], p[1], 0, s, want.time)]);
+      if (p) layers.push([HELD_Z, () => drawItemAt(ctx, assets, item, p[0], p[1], 0, sa, want.time)]);
     }
     if (anchors.head && anchors.head[2] === undefined) headTop = Math.min(headTop, anchors.head[1] - 1);
     layers.sort((a, b) => a[0] - b[0]);
@@ -401,7 +403,7 @@ export function drawActor(ctx, actor, world, assets) {
     ctx.restore();
   }
 
-  const top = ground - (fh - headTop) * s;
+  const top = ground - (fh - headTop) * sa;
   const effect = actor.effect;
   if (effect && EFFECTS[effect.name]) {
     ctx.save();
@@ -468,7 +470,7 @@ export function drawThing(ctx, thing, world, assets) {
   if (!item) return;
   const fr = itemFrame(assets, item, thing.anim, thing.time);
   if (!fr) return;
-  const s = world.scale;
+  const s = world.spriteScale ?? 1;
   ctx.save();
   ctx.translate(Math.round(thing.x), Math.round(world.strip.groundY - (thing.y ?? 0)));
   if ((thing.facing ?? 1) < 0) ctx.scale(-1, 1);

@@ -1,10 +1,10 @@
 {
   "title": "Бочачка віна",
   "anchor": [
-    4,
-    4
+    12,
+    12
   ],
   "image": "sheet.png",
-  "frameWidth": 9,
-  "frameHeight": 8
+  "frameWidth": 27,
+  "frameHeight": 24
 }

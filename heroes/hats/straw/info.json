@@ -2,10 +2,10 @@
   "title": "Саламяны капялюш",
   "weight": 1,
   "anchor": [
-    9,
-    7
+    27,
+    21
   ],
   "image": "sheet.png",
-  "frameWidth": 18,
-  "frameHeight": 9
+  "frameWidth": 54,
+  "frameHeight": 27
 }

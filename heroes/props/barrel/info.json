@@ -1,8 +1,8 @@
 {
   "title": "Бочка",
   "anchor": [
-    7,
-    15
+    21,
+    45
   ],
   "animations": {
     "idle": {
@@ -17,6 +17,6 @@
     }
   },
   "image": "sheet.png",
-  "frameWidth": 16,
-  "frameHeight": 16
+  "frameWidth": 48,
+  "frameHeight": 48
 }

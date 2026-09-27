@@ -1,10 +1,10 @@
 {
   "title": "Кашалёк",
   "anchor": [
-    3,
-    3
+    9,
+    9
   ],
   "image": "sheet.png",
-  "frameWidth": 6,
-  "frameHeight": 6
+  "frameWidth": 18,
+  "frameHeight": 18
 }

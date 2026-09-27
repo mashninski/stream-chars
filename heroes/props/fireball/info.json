@@ -1,8 +1,8 @@
 {
   "title": "Агністы шар",
   "anchor": [
-    5,
-    5
+    15,
+    15
   ],
   "animations": {
     "idle": {
@@ -12,6 +12,6 @@
     }
   },
   "image": "sheet.png",
-  "frameWidth": 11,
-  "frameHeight": 11
+  "frameWidth": 33,
+  "frameHeight": 33
 }

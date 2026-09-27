@@ -91,6 +91,7 @@
       "groundY": 1060
     },
     "scale": 3,
+    "spriteScale": 1,
     "walkSpeed": 60,
     "walkDistance": [80, 400],
     "idlePause": [2, 6],

@@ -1,10 +1,10 @@
 {
   "title": "Шчыт",
   "anchor": [
-    5,
-    6
+    15,
+    18
   ],
   "image": "sheet.png",
-  "frameWidth": 10,
-  "frameHeight": 12
+  "frameWidth": 30,
+  "frameHeight": 36
 }

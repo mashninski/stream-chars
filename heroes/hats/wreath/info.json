@@ -2,10 +2,10 @@
   "title": "Вянок",
   "weight": 1,
   "anchor": [
-    6,
-    4
+    18,
+    12
   ],
   "image": "sheet.png",
-  "frameWidth": 14,
-  "frameHeight": 7
+  "frameWidth": 42,
+  "frameHeight": 21
 }

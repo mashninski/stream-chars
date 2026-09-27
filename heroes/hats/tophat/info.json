@@ -2,10 +2,10 @@
   "title": "Капялюш-цыліндр",
   "weight": 1,
   "anchor": [
-    7,
-    9
+    21,
+    27
   ],
   "image": "sheet.png",
-  "frameWidth": 14,
-  "frameHeight": 11
+  "frameWidth": 42,
+  "frameHeight": 33
 }

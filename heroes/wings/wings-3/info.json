@@ -1,8 +1,8 @@
 {
   "title": "Залатыя крылы",
   "anchor": [
-    20,
-    27
+    60,
+    81
   ],
   "animations": {
     "idle": {
@@ -12,6 +12,6 @@
     }
   },
   "image": "sheet.png",
-  "frameWidth": 46,
-  "frameHeight": 28
+  "frameWidth": 138,
+  "frameHeight": 84
 }

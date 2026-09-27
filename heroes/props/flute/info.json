@@ -1,10 +1,10 @@
 {
   "title": "Дудка",
   "anchor": [
-    2,
-    1
+    6,
+    3
   ],
   "image": "sheet.png",
-  "frameWidth": 10,
-  "frameHeight": 3
+  "frameWidth": 30,
+  "frameHeight": 9
 }

@@ -19,6 +19,7 @@ const LIMITS = {
   'bubble.maxSeconds': [0.5, 120],
   'raid.maxCount': [0, 200],
   'overlay.scale': [1, 10],
+  'overlay.spriteScale': [1, 6],
   'overlay.width': [100, 8000],
   'overlay.height': [100, 8000],
   'scenes.maxConcurrent': [1, 50],

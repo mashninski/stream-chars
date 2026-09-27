@@ -1,10 +1,10 @@
 {
   "title": "Вялікая лупа",
   "anchor": [
-    2,
-    12
+    6,
+    36
   ],
   "image": "sheet.png",
-  "frameWidth": 14,
-  "frameHeight": 14
+  "frameWidth": 42,
+  "frameHeight": 42
 }

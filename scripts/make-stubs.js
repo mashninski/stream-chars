@@ -13,7 +13,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // --out <папка> — писать не в heroes/, а в другую папку (проверить результат, не трогая свои файлы).
 const outArg = process.argv.indexOf('--out');
 const out = outArg > 0 ? path.resolve(process.argv[outArg + 1]) : path.join(root, 'heroes');
-const F = 32; // размер кадра тела
+const F = 32; // размер кадра тела, в котором рисуются заглушки
+// Заглушки рисуются в сетке 32 и пишутся увеличенными ×UP: своя графика — кадр 96×96, показ ×1
+// (`claude/heroes-plan.md`, «Паспорт стиля»). Размеры кадров и точки привязки в описаниях — тоже ×UP.
+const UP = 3;
 
 // ---------- холст кадра ----------
 
@@ -116,14 +119,19 @@ class Frame {
   }
 }
 
-// Лист: строки анимаций, кадры слева направо.
+// Лист: строки анимаций, кадры слева направо; каждый пиксель заглушки — квадрат UP×UP.
 function sheetPng(rows, fw, fh) {
   const cols = Math.max(1, ...rows.map((r) => r.length));
-  const w = cols * fw, h = Math.max(1, rows.length) * fh;
+  const w = cols * fw * UP, h = Math.max(1, rows.length) * fh * UP;
   const px = new Uint8Array(w * h * 4);
   rows.forEach((frames, row) =>
     frames.forEach((fr, col) => {
-      for (let y = 0; y < fh; y++) px.set(fr.px.subarray(y * fw * 4, (y + 1) * fw * 4), ((row * fh + y) * w + col * fw) * 4);
+      for (let y = 0; y < fh * UP; y++) {
+        for (let x = 0; x < fw * UP; x++) {
+          const s = (Math.floor(y / UP) * fw + Math.floor(x / UP)) * 4;
+          px.set(fr.px.subarray(s, s + 4), ((row * fh * UP + y) * w + col * fw * UP + x) * 4);
+        }
+      }
     }),
   );
   return encodePng(w, h, px);
@@ -136,7 +144,17 @@ function writeFile(rel, data) {
   fs.writeFileSync(file, data);
   written.push(rel);
 }
-const writeJson = (rel, obj) => writeFile(rel, JSON.stringify(obj, null, 2) + '\n');
+// Описание из сетки заглушек — в сетку листа: кадры и точки привязки ×UP (поворот точки не меняется).
+const upPt = (p) => p.map((v, i) => (i < 2 ? v * UP : v));
+function upJson(v, key) {
+  if (Array.isArray(v)) return key === 'anchor' ? upPt(v) : v.map((x) => upJson(x, key));
+  if (v && typeof v === 'object') {
+    if (key === 'anchors') return Object.fromEntries(Object.entries(v).map(([n, p]) => [n, Array.isArray(p) ? upPt(p) : upJson(p, 'anchors')]));
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, upJson(x, k)]));
+  }
+  return key === 'frameWidth' || key === 'frameHeight' ? v * UP : v;
+}
+const writeJson = (rel, obj) => writeFile(rel, JSON.stringify(upJson(obj), null, 2) + '\n');
 
 // ---------- тело: позы ----------
 

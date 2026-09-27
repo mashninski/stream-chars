@@ -1,8 +1,8 @@
 {
   "title": "Крылы",
   "anchor": [
-    17,
-    23
+    51,
+    69
   ],
   "animations": {
     "idle": {
@@ -12,6 +12,6 @@
     }
   },
   "image": "sheet.png",
-  "frameWidth": 40,
-  "frameHeight": 24
+  "frameWidth": 120,
+  "frameHeight": 72
 }
