@@ -5,23 +5,279 @@
 import { wrapLines } from './actor.js';
 
 // Эффекты — рисуются программно, без файлов графики. Новый эффект — запись здесь.
-// Аргументы: cx, cy — центр (px экрана), size — размер героя (px), s — пиксель арта, time — с от начала,
-// world — настройки, p — доля от 0 до 1 (если у эффекта есть длительность), data — что передала сцена.
+// Аргументы: cx, cy — середина героя или точка сцены (px экрана), size — размер героя (px), s — пиксель
+// арта, time — с от начала, p — доля от 0 до 1 (если у эффекта есть длительность, иначе null),
+// data — что передала сцена, world — настройки. Над головой — примерно cy - size * 0.75.
+const px = (ctx, x, y, s, color) => {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x / s) * s, Math.round(y / s) * s, s, s);
+};
+
+function label(ctx, text, x, y, color, sizePx = 22) {
+  ctx.font = `bold ${sizePx}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#1b1b1b';
+  ctx.fillStyle = color;
+  ctx.strokeText(text, Math.round(x), Math.round(y));
+  ctx.fillText(text, Math.round(x), Math.round(y));
+}
+
+// Псевдослучайное по номеру частицы — одинаково каждый кадр (частицы не дёргаются).
+const hash = (i) => {
+  const v = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return v - Math.floor(v);
+};
+
+function puffs(ctx, { cx, cy, size, s }, p, color, spread = 1) {
+  const list = [[0, 0, 1], [-0.35, 0.15, 0.7], [0.35, 0.15, 0.7], [-0.2, -0.3, 0.6], [0.25, -0.28, 0.6], [0, 0.35, 0.55]];
+  ctx.globalAlpha *= p < 0.5 ? 1 : Math.max(0, 1 - (p - 0.5) * 2);
+  ctx.fillStyle = color;
+  for (const [dx, dy, k] of list) {
+    const r = size * k * (0.25 + 0.35 * p);
+    pixelCircle(ctx, cx + dx * size * (0.6 + p) * spread, cy + dy * size * (0.6 + p) * spread, r, s);
+  }
+}
+
 export const EFFECTS = {
   // «Пух»: облачко из пиксельных кругов раздувается и тает.
-  poof(ctx, { cx, cy, size, s, time, world }) {
-    const p = Math.min(time / world.poofTime, 1);
-    const puffs = [[0, 0, 1], [-0.35, 0.15, 0.7], [0.35, 0.15, 0.7], [-0.2, -0.3, 0.6], [0.25, -0.28, 0.6], [0, 0.35, 0.55]];
-    ctx.save();
-    ctx.globalAlpha = p < 0.5 ? 1 : 1 - (p - 0.5) * 2;
-    ctx.fillStyle = '#f2f2f2';
-    for (const [dx, dy, k] of puffs) {
-      const r = size * k * (0.25 + 0.35 * p);
-      pixelCircle(ctx, cx + dx * size * (0.6 + p), cy + dy * size * (0.6 + p), r, s);
+  poof(ctx, a) {
+    puffs(ctx, a, a.p ?? Math.min(a.time / a.world.poofTime, 1), '#f2f2f2');
+  },
+  smoke(ctx, a) {
+    const p = a.p ?? (a.time % 1.2) / 1.2;
+    puffs(ctx, { ...a, cy: a.cy - p * a.size * 0.6 }, p, '#8a8a8a', 0.8);
+  },
+  dust(ctx, a) {
+    const p = a.p ?? (a.time % 0.8) / 0.8;
+    puffs(ctx, { ...a, cy: a.cy + a.size * 0.35, size: a.size * 0.6 }, p, '#c8b89a', 1.4);
+  },
+  exclaim(ctx, { cx, cy, size, time }) {
+    label(ctx, '!', cx + 4, cy - size * 0.8 - Math.abs(Math.sin(time * 8)) * 6, '#ff4040', 30);
+  },
+  question(ctx, { cx, cy, size, time }) {
+    label(ctx, '?', cx + 4, cy - size * 0.8 - Math.abs(Math.sin(time * 5)) * 4, '#ffd83d', 28);
+  },
+  // Знак злости — красный «крест» у головы, пульсирует.
+  anger(ctx, { cx, cy, size, s, time }) {
+    const k = 1 + 0.25 * Math.sin(time * 12);
+    const x = cx + size * 0.28;
+    const y = cy - size * 0.62;
+    for (const [dx, dy] of [[-1, -2], [-1, -1], [-2, -1], [1, -2], [1, -1], [2, -1], [-1, 2], [-1, 1], [-2, 1], [1, 2], [1, 1], [2, 1]]) {
+      px(ctx, x + dx * s * k, y + dy * s * k, s, '#ff3030');
     }
-    ctx.restore();
+    label(ctx, '#!', cx, cy - size * 0.95, '#ff5050', 16);
+  },
+  zzz(ctx, { cx, cy, size, time }) {
+    for (let i = 0; i < 3; i++) {
+      const t = (time * 0.6 + i / 3) % 1;
+      ctx.globalAlpha = 1 - t;
+      label(ctx, 'z', cx + size * 0.25 + t * 30, cy - size * 0.4 - t * 50, '#e8f0ff', 14 + t * 12);
+    }
+    ctx.globalAlpha = 1;
+  },
+  // Пьяный сон: «хрррр» и пузырьки.
+  snore(ctx, a) {
+    const { cx, cy, size, time } = a;
+    const t = (time * 0.4) % 1;
+    ctx.globalAlpha = 1 - t * 0.8;
+    label(ctx, 'хрррр', cx + size * 0.3 + t * 20, cy - size * 0.35 - t * 40, '#ffe0f0', 16);
+    ctx.globalAlpha = 1;
+    EFFECTS.bubbles(ctx, a);
+  },
+  bubbles(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 6; i++) {
+      const t = (time * 0.7 + hash(i)) % 1;
+      const x = cx + (hash(i + 10) - 0.5) * size * 0.8;
+      const y = cy - size * 0.4 - t * size;
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = '#ffb0d0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, s * (1 + hash(i + 20) * 1.5), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  },
+  // Звёздочки кружат над головой.
+  stars(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 3; i++) {
+      const ang = time * 5 + (i * Math.PI * 2) / 3;
+      const x = cx + Math.cos(ang) * size * 0.35;
+      const y = cy - size * 0.55 + Math.sin(ang) * size * 0.1;
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) px(ctx, x + dx * s, y + dy * s, s, '#ffe040');
+    }
+  },
+  tears(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 4; i++) {
+      const t = (time * 1.5 + i / 4) % 1;
+      px(ctx, cx + (i % 2 ? 1 : -1) * size * 0.12, cy - size * 0.2 + t * size * 0.4, s, '#60b0ff');
+    }
+  },
+  // Искры: во все стороны (data.dx — сдвиг в сторону взгляда, в размерах героя).
+  sparks(ctx, { cx, cy, size, s, time, p, data }) {
+    const k = p ?? (time % 0.5) / 0.5;
+    const x0 = cx + (data?.dx ?? 0) * size * 0.3;
+    for (let i = 0; i < 10; i++) {
+      const ang = hash(i) * Math.PI * 2;
+      const r = k * size * (0.3 + hash(i + 5) * 0.4);
+      px(ctx, x0 + Math.cos(ang) * r, cy + Math.sin(ang) * r, s, i % 2 ? '#fff6a0' : '#ffb020');
+    }
+  },
+  sparkle(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 6; i++) {
+      if ((Math.floor(time * 8) + i) % 3) continue;
+      const x = cx + (hash(i + Math.floor(time * 4)) - 0.5) * size;
+      const y = cy + (hash(i + 40 + Math.floor(time * 4)) - 0.5) * size;
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) px(ctx, x + dx * s, y + dy * s, s, dx || dy ? '#c8e8ff' : '#ffffff');
+    }
+  },
+  // Крик: дуги от лица в обе стороны.
+  shout(ctx, { cx, cy, size, time }) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      const r = ((time * 1.5 + i / 3) % 1) * size * 1.6 + size * 0.2;
+      ctx.globalAlpha = 1 - r / (size * 1.8);
+      for (const dir of [0, Math.PI]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy - size * 0.3, r, dir - 0.5, dir + 0.5);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+  // Пламя вокруг: ряд языков у ног (data.width — ширина, px).
+  flame(ctx, { cx, cy, size, s, time, data }) {
+    const w = data?.width ?? size;
+    for (let x = -w; x <= w; x += s * 2) {
+      const h = size * (0.25 + 0.2 * Math.abs(Math.sin(time * 9 + x * 0.13)));
+      const base = cy + size * 0.5;
+      for (let y = 0; y < h; y += s) {
+        const k = y / h;
+        px(ctx, cx + x, base - y, s, k < 0.4 ? '#ff5010' : k < 0.75 ? '#ffa020' : '#ffe060');
+      }
+    }
+  },
+  explosion(ctx, { cx, cy, size, s, time, p }) {
+    const k = p ?? Math.min(1, time / 0.7);
+    ctx.globalAlpha = 1 - k * 0.8;
+    ctx.fillStyle = '#ff6010';
+    pixelCircle(ctx, cx, cy, size * (0.3 + k * 1.1), s);
+    ctx.fillStyle = '#ffb020';
+    pixelCircle(ctx, cx, cy, size * (0.2 + k * 0.8), s);
+    ctx.fillStyle = '#fff6c0';
+    pixelCircle(ctx, cx, cy, size * (0.1 + k * 0.4), s);
+    ctx.globalAlpha = 1;
+  },
+  // Магический круг у ног: точки бегут по кругу.
+  runes(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 12; i++) {
+      const ang = time * 3 + (i * Math.PI * 2) / 12;
+      px(ctx, cx + Math.cos(ang) * size * 0.6, cy + size * 0.45 + Math.sin(ang) * size * 0.12, s, i % 2 ? '#b080ff' : '#e0c0ff');
+    }
+  },
+  hearts(ctx, { cx, cy, size, s, time }) {
+    const shape = [[-1, 0], [1, 0], [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1], [-1, -2], [1, -2], [0, 1], [-1, 0.0001]];
+    for (let i = 0; i < 3; i++) {
+      const t = (time * 0.5 + i / 3) % 1;
+      const x = cx + (hash(i) - 0.5) * size * 0.6;
+      const y = cy - t * size * 0.8;
+      ctx.globalAlpha = 1 - t;
+      for (const [dx, dy] of shape) px(ctx, x + dx * s, y + dy * s, s, '#ff5a8a');
+    }
+    ctx.globalAlpha = 1;
+  },
+  notes(ctx, { cx, cy, size, time }) {
+    for (let i = 0; i < 3; i++) {
+      const t = (time * 0.5 + i / 3) % 1;
+      ctx.globalAlpha = 1 - t;
+      label(ctx, i % 2 ? '♪' : '♫', cx + Math.sin(t * 6 + i) * size * 0.4, cy - size * 0.5 - t * size * 0.8, '#ffffff', 20);
+    }
+    ctx.globalAlpha = 1;
+  },
+  hello(ctx, { cx, cy, size, time }) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    const x = cx + size * 0.45;
+    const y = cy - size * 0.45;
+    for (let i = 1; i <= 2; i++) {
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time * 10 + i);
+      ctx.beginPath();
+      ctx.arc(x, y, i * 8, -0.8, 0.8);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  },
+  // Песок в глаза: частицы летят в сторону взгляда (data.dir).
+  sand(ctx, { cx, cy, size, s, time, p, data }) {
+    const k = p ?? (time % 0.7) / 0.7;
+    const dir = data?.dir ?? 1;
+    for (let i = 0; i < 14; i++) {
+      const d = k * size * (0.6 + hash(i) * 0.8);
+      px(ctx, cx + dir * d, cy - size * 0.1 + (hash(i + 3) - 0.5) * size * 0.3 * k, s, i % 3 ? '#e0c080' : '#b89050');
+    }
+  },
+  // «Бум»: звёзды над головой.
+  bonk(ctx, a) {
+    EFFECTS.stars(ctx, a);
+    label(ctx, 'бум!', a.cx, a.cy - a.size * 0.95, '#ffe060', 16);
+  },
+  // Костёр: поленья, пламя; data.meat — мясо на палке.
+  campfire(ctx, { cx, cy, size, s, time, data }) {
+    const base = cy;
+    for (let x = -4; x <= 4; x++) px(ctx, cx + x * s, base, s, '#6a4a2a');
+    for (let x = -3; x <= 3; x += 2) px(ctx, cx + x * s, base - s, s, '#4a3018');
+    for (let x = -3; x <= 3; x++) {
+      const h = 3 + Math.round(2 * Math.abs(Math.sin(time * 10 + x)));
+      for (let y = 1; y <= h; y++) px(ctx, cx + x * s, base - s - y * s, s, y > h - 1 ? '#ffe060' : y > h / 2 ? '#ffa020' : '#ff5010');
+    }
+    if (data?.meat) {
+      for (let x = -6; x <= 6; x++) px(ctx, cx + x * s, base - 8 * s, s, '#8a6a4a');
+      for (const [dx, dy] of [[-1, 0], [0, 0], [1, 0], [0, -1], [0, 1]]) px(ctx, cx + dx * s, base - 8 * s + dy * s, s, '#a0522d');
+    }
+  },
+  // Запах еды: волнистые линии вверх.
+  smell(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 3; i++) {
+      for (let y = 0; y < 8; y++) {
+        const t = (time + y * 0.1) % 1;
+        px(ctx, cx + (i - 1) * size * 0.2 + Math.sin(time * 4 + y) * s * 1.5, cy - y * s * 2 - t * s, s, 'rgba(255,255,255,0.6)');
+      }
+    }
+  },
+  crumbs(ctx, { cx, cy, size, s, time }) {
+    for (let i = 0; i < 6; i++) {
+      const t = (time * 1.4 + hash(i)) % 1;
+      px(ctx, cx + (hash(i + 7) - 0.3) * size * 0.4, cy - size * 0.2 + t * size * 0.6, s, '#c89050');
+    }
   },
 };
+
+// Эффекты сцен: у сущности (at — следует за ней, dy — выше её середины) или в точке (x, y над землёй).
+export function drawSceneEffects(ctx, effects, world, assets) {
+  const s = world.scale;
+  for (const e of effects) {
+    const fn = EFFECTS[e.name];
+    if (!fn) continue;
+    let cx = e.x;
+    let cy = world.strip.groundY - (e.y ?? 0);
+    let size = (assets.body?.frameHeight ?? 32) * s;
+    if (e.at) {
+      const t = e.at;
+      const item = t.category ? assets.item(t.category, t.id) : null;
+      size = item ? Math.max(item.frameWidth, item.frameHeight) * s : size;
+      const feet = world.strip.groundY - (t.drawY ?? t.y ?? 0);
+      cx = t.x;
+      cy = feet - (item ? item.frameHeight * s : size) / 2;
+    }
+    ctx.save();
+    fn(ctx, { cx, cy: cy - (e.dy ?? 0), size, s, time: e.time, p: e.duration ? Math.min(1, e.time / e.duration) : null, data: e.data, world });
+    ctx.restore();
+  }
+}
 
 // Круг из квадратов размером с пиксель арта — в том же стиле, что спрайты.
 export function pixelCircle(ctx, cx, cy, r, s) {
@@ -132,9 +388,26 @@ export function drawActor(ctx, actor, world, assets) {
 
   const top = ground - (fh - headTop) * s;
   const effect = actor.effect;
-  if (effect) EFFECTS[effect.name]?.(ctx, { cx: actor.x, cy: ground - size / 2, size, s, time: effect.time, world });
+  if (effect && EFFECTS[effect.name]) {
+    ctx.save();
+    EFFECTS[effect.name](ctx, { cx: actor.x, cy: ground - size / 2, size, s, time: effect.time, p: null, world });
+    ctx.restore();
+  }
   actor.drawTop = Math.round(top) - 6 - (traits.nameShown ? 22 : 0);
   if (!actor.visible || !traits.nameShown) return;
+  // «Первое слово»: ник выплывает из облака и встаёт над головой.
+  const float = actor.nameFloat;
+  if (float && float.time < float.duration) {
+    const k = float.time / float.duration;
+    const box = actor.bubble?.box;
+    const fromX = box ? box.left + box.w / 2 : actor.x;
+    const fromY = box ? box.top + box.h / 2 + 11 : top - 60;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, 0.3 + k);
+    drawName(ctx, actor.name, fromX + (actor.x - fromX) * k, fromY + (top - 6 - fromY) * k, traits.nameColor);
+    ctx.restore();
+    return;
+  }
   drawName(ctx, actor.name, actor.x, top - 6, traits.nameColor);
 }
 

@@ -27,6 +27,7 @@ function between([min, max], rand) {
 // - ground — стоит на земле: можно реагировать на сообщения и сразу уходить;
 // - once — состояние длится одно проигрывание своей анимации, потом следующее из очереди (или idle);
 // - effect — эффект, который рисует render.js (EFFECTS там), visible(a) — виден ли сам персонаж;
+// - animOf(a) — анимация, если она зависит от персонажа (сцена, отброс);
 // - update(a, dt) — что делать каждый кадр.
 export const STATES = {
   idle: {
@@ -77,7 +78,118 @@ export const STATES = {
   land: { anim: 'land', once: true },
   shake: { anim: 'shake', once: true },
   gone: { anim: 'idle', visible: () => false },
+  // В сцене: двигает и одевает сцена (scene-engine.js), своя ходьба на паузе.
+  scene: {
+    animOf: (a) => a.sceneAnim?.name ?? 'idle',
+    update(a, dt) {
+      if (a.sceneAnim) a.sceneAnim.time += dt;
+    },
+  },
 };
+
+// ---------- реакции соседей ----------
+// Что сцена делает с целью: паника, отброс, сон… Общие для всех героев, одна таблица.
+// Цель на время реакции занята (в другую сцену не берётся, своя ходьба на паузе), потом — idle.
+// Поля: anim, fallback — анимация; effect — эффект над героем (render.js); time — сколько длится, с
+// (по умолчанию; настройка — world.reactions[имя]); start(a, params), update(a, dt) — поведение;
+// animOf(a) — анимация, если меняется по ходу; endless — кончается сама, не по времени.
+// Новая реакция — запись здесь (своя анимация — строка в листах или запасная в body.json).
+const away = (a) => (a.x >= (a.affect.from ?? a.x - 1) ? 1 : -1);
+
+// Бег туда-сюда в пределах полосы: разворот у края или по таймеру.
+function roam(a, dt, speed, turnEvery) {
+  const { left, right } = a.world.strip;
+  a.affect.turn = (a.affect.turn ?? turnEvery) - dt;
+  if (a.affect.turn <= 0 || (a.facing < 0 && a.x <= left) || (a.facing > 0 && a.x >= right)) {
+    a.facing = a.x <= left ? 1 : a.x >= right ? -1 : -a.facing;
+    a.affect.turn = turnEvery * (0.6 + 0.8 * a.rand());
+  }
+  a.x = Math.min(right, Math.max(left, a.x + a.facing * speed * dt));
+}
+
+export const AFFECTS = {
+  // Паника: бежит прочь от источника, у края разворачивается.
+  panic: {
+    anim: 'panic', fallback: 'run', effect: 'exclaim', time: 3,
+    start(a) { a.facing = away(a); },
+    update(a, dt) { roam(a, dt, a.world.walkSpeed * 2.6, 99); },
+  },
+  // Отброс: летит от источника, падает, лежит, встаёт.
+  knocked: {
+    anim: 'knocked', fallback: 'fall', effect: 'stars', time: 1.5, endless: true,
+    animOf: (a) => ({ air: 'knocked', down: 'sleep', up: 'get_up' })[a.affect.phase],
+    start(a, p) {
+      a.affect.phase = 'air';
+      a.affect.phaseTime = 0;
+      a.affect.vx = away(a) * (p.power ?? 260) * (0.8 + 0.4 * a.rand());
+      a.vy = -(p.lift ?? 420);
+      a.facing = -Math.sign(a.affect.vx) || a.facing;
+    },
+    update(a, dt) {
+      const f = a.affect;
+      f.phaseTime += dt;
+      if (f.phase === 'air') {
+        const { left, right } = a.world.strip;
+        a.x = Math.min(right, Math.max(left, a.x + f.vx * dt));
+        a.vy += a.world.fallGravity * dt;
+        if (a.descend(a.vy * dt)) {
+          f.phase = 'down';
+          f.phaseTime = 0;
+        }
+      } else if (f.phase === 'down' && f.phaseTime >= f.duration) {
+        f.phase = 'up';
+        f.phaseTime = 0;
+      } else if (f.phase === 'up' && f.phaseTime >= (a.animLength(a.traits, 'get_up') ?? 0.8)) {
+        a.idle();
+      }
+    },
+  },
+  // Сон — лежит, «z-z-z».
+  sleep: { anim: 'sleep', effect: 'zzz', time: 15 },
+  // Пьяный сон — лежит, пузырьки и «хрррр».
+  drunkSleep: { anim: 'sleep', effect: 'snore', time: 60 },
+  // Пьяный — шатается на месте.
+  drunk: {
+    anim: 'drunk', effect: 'bubbles', time: 4,
+    update(a, dt) { a.x += Math.sin(a.stateTime * 3) * 12 * dt; },
+  },
+  // Трёт глаза (песок).
+  rubEyes: { anim: 'rub_eyes', effect: 'tears', time: 5 },
+  // Хлопает по карманам — где кошелёк?
+  patPockets: { anim: 'pat_pockets', effect: 'question', time: 1.5 },
+  // Злость и поиск: ходит туда-сюда, сердится.
+  angry: {
+    anim: 'angry', fallback: 'walk', effect: 'anger', time: 6,
+    animOf: (a) => (Math.floor(a.stateTime / 0.8) % 2 ? 'walk' : 'angry'),
+    update(a, dt) { if (Math.floor(a.stateTime / 0.8) % 2) roam(a, dt, a.world.walkSpeed * 1.2, 1.6); },
+  },
+  // Злость с паникой: носится туда-сюда и кричит.
+  rage: {
+    anim: 'panic', fallback: 'run', effect: 'anger', time: 6,
+    update(a, dt) { roam(a, dt, a.world.walkSpeed * 2.4, 1.2); },
+  },
+  // Пьёт.
+  drink: { anim: 'drink', effect: 'bubbles', time: 3 },
+  // Дерётся: толкается на месте.
+  fight: {
+    anim: 'fight', fallback: 'angry', effect: 'dust', time: 5,
+    update(a, dt) { a.x += Math.sin(a.stateTime * 9 + (a.affect.phase0 ??= a.rand() * 6)) * 40 * dt; },
+  },
+};
+
+for (const [name, r] of Object.entries(AFFECTS)) {
+  STATES[name] = {
+    anim: r.anim,
+    fallback: r.fallback,
+    effect: r.effect,
+    animOf: r.animOf,
+    affect: true,
+    update(a, dt) {
+      r.update?.(a, dt);
+      if (a.state === name && !r.endless && a.stateTime >= a.affect.duration) a.idle();
+    },
+  };
+}
 
 // Способы появления: ставят персонажа на старт и запускают первое состояние.
 // Новый способ — запись здесь и имя в "entrances" в config.json (там же — как часто выпадает).
@@ -206,6 +318,16 @@ export class Actor {
     this.pendingLeave = false;
     // Облако с сообщением: { text, time, duration } или null. Не зависит от состояния.
     this.bubble = null;
+    // Сцена, в которой участвует (scene-engine.js), её анимация, предметы в руках и прозрачность.
+    this.scene = null;
+    this.sceneAnim = null;
+    this.held = {};
+    this.alpha = undefined;
+    // Реакция соседа (AFFECTS): { name, duration, from, … } или null.
+    this.affect = null;
+    // Сколько секунд ждёт ухода (пришёл leave, а персонаж занят).
+    this.leaveWait = 0;
+    this.raider = !!viewer.raider;
     const start = ENTRANCES[entrance] ?? ENTRANCES.poof;
     this.entrance = ENTRANCES[entrance] ? entrance : 'poof';
     start(this);
@@ -261,6 +383,7 @@ export class Actor {
 
   idle() {
     this.queue = [];
+    this.affect = null;
     this.setState('idle');
     this.pause = between(this.world.idlePause, this.rand);
     // Встал на землю, а уход уже пришёл — уходит.
@@ -303,6 +426,7 @@ export class Actor {
   // Зритель вернулся, пока персонаж уходил, — остаётся.
   stay() {
     this.pendingLeave = false;
+    this.leaveWait = 0;
     if (this.state === 'leave') this.idle();
   }
 
@@ -327,11 +451,33 @@ export class Actor {
     return this.state === 'gone';
   }
 
+  // Свободен для сцены: стоит или ходит сам, не в сцене, не в реакции, не уходит.
+  get free() {
+    return !this.scene && !!STATES[this.state].ground && !this.pendingLeave && !this.reaction;
+  }
+
+  // Реакция соседа (AFFECTS): из сцены или сама. params: { from — x источника, … }.
+  // Длительность — world.reactions[имя] или по умолчанию. Уходящий не реагирует. true — началась.
+  applyAffect(name, params = {}) {
+    const r = AFFECTS[name];
+    if (!r || this.state === 'leave' || this.state === 'gone') return false;
+    this.scene = null;
+    this.sceneAnim = null;
+    this.reaction = null;
+    this.queue = [];
+    this.affect = { name, duration: this.world.reactions?.[name] ?? r.time, ...params };
+    this.setState(name);
+    r.start?.(this, params);
+    return true;
+  }
+
   // Что рисовать: анимация, запасная анимация и время в ней.
   get animation() {
     if (this.reaction) return { name: REACTIONS[this.reaction.name].anim, fallback: 'idle', time: this.reaction.time };
     const s = STATES[this.state];
-    return { name: s.anim, fallback: s.fallback ?? 'idle', time: this.stateTime };
+    if (this.state === 'scene') return { name: s.animOf(this), fallback: 'idle', time: this.sceneAnim?.time ?? this.stateTime };
+    if (this.affect?.phase) return { name: s.animOf(this), fallback: s.fallback ?? 'idle', time: this.affect.phaseTime };
+    return { name: s.animOf?.(this) ?? s.anim, fallback: s.fallback ?? 'idle', time: this.stateTime };
   }
 
   // Высота, на которой рисовать: своя плюс подъём от реакции.
@@ -356,6 +502,11 @@ export class Actor {
   update(dt) {
     this.stateTime += dt;
     if (this.bubble && (this.bubble.time += dt) >= this.bubble.duration) this.bubble = null;
+    // Уход ждёт конца реакции, но не дольше предела (сцену прерывает scene-engine.js).
+    if (this.pendingLeave) {
+      this.leaveWait += dt;
+      if (STATES[this.state].affect && this.leaveWait >= (this.world.scenes?.leaveWaitSeconds ?? 20)) this.idle();
+    }
     if (this.reaction) {
       this.reaction.time += dt;
       if (this.reaction.time >= REACTIONS[this.reaction.name].time(this.world)) this.reaction = null;

@@ -79,6 +79,13 @@ export class Assets {
     return animations?.[fallback] ?? animations?.idle;
   }
 
+  // Длина анимации вещи сцены ({ category, id }), с.
+  itemAnimLength(thing, name) {
+    const it = this.item(thing.category, thing.id);
+    const a = it && this.resolveAnim(it.animations, name);
+    return a ? a.frames / a.fps : undefined;
+  }
+
   // Длина анимации героя, с (логике — когда кончилась одноразовая).
   heroAnimLength(traits, name) {
     const cls = this.item('classes', traits?.class);

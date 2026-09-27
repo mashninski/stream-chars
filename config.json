@@ -7,7 +7,33 @@
     "fall": 1
   },
   "triggers": {
-    "message": "jump"
+    "message": "jump",
+    "firstMessage": "common/first-word",
+    "change": "common/change"
+  },
+  "scenes": {
+    "maxConcurrent": 3,
+    "leaveWaitSeconds": 20,
+    "ambushSeconds": 20,
+    "ambushDistance": 60,
+    "shoutRadius": 300,
+    "blastRadius": 140,
+    "brawlGuests": 3,
+    "restSeconds": 8,
+    "firstWordThinkSeconds": 10
+  },
+  "reactions": {
+    "panic": 3,
+    "knocked": 1.5,
+    "sleep": 15,
+    "drunkSleep": 60,
+    "drunk": 4,
+    "rubEyes": 5,
+    "patPockets": 1.5,
+    "angry": 6,
+    "rage": 6,
+    "drink": 3,
+    "fight": 5
   },
   "bubble": {
     "maxChars": 100,

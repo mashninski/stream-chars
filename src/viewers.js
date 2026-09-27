@@ -7,7 +7,7 @@
 // - 'traits' (viewer) — у героя на экране поменялись признаки;
 // - 'act' (viewer, action, params) — действие у персонажа (реакция, сцена, облако с текстом).
 import { EventEmitter } from 'node:events';
-import { pickWeighted } from '../public/js/random.js';
+import { pickWeighted, newSeed } from '../public/js/random.js';
 
 export class Viewers extends EventEmitter {
   #onScreen = new Map();
@@ -20,6 +20,8 @@ export class Viewers extends EventEmitter {
   #store;
   #heroes;
   #opts;
+  // Действия зрителей не на экране: id → [{ action, params }].
+  #pending = new Map();
 
   // store — герои зрителей (store.js), heroes — признаки (heroes.js).
   // options: config() — текущие настройки ({ maxOnScreen, entrances, raid }; читаются в момент использования,
@@ -59,6 +61,12 @@ export class Viewers extends EventEmitter {
   #show(viewer) {
     this.#onScreen.set(viewer.id, viewer);
     this.emit('join', viewer, this.#entrance());
+    // Действия, которые ждали его появления, — сразу за появлением (оверлей сыграет, когда встанет).
+    const waiting = this.#pending.get(viewer.id);
+    if (waiting) {
+      this.#pending.delete(viewer.id);
+      for (const { action, params } of waiting) this.emit('act', viewer, action, params);
+    }
   }
 
   // Освободилось место — выходят первые из очереди.
@@ -131,13 +139,27 @@ export class Viewers extends EventEmitter {
   }
 
   // Действие у персонажа — общий путь для всех источников (чат, награда, панель).
-  // action — имя реакции или сцены, params — { text?, seed? }. Какое действие у какого источника —
-  // в настройках ("triggers"), источник не знает, какие действия есть. Пока только у тех, кто на экране.
-  act(id, action, params = {}) {
+  // action — имя реакции или сцены, params — { text? }; зерно случайности добавляется здесь (одно на все
+  // оверлеи). Какое действие у какого источника — в настройках ("triggers"), источник не знает, какие
+  // действия есть. wait — зритель не на экране (в очереди, офлайн): действие ждёт его появления до конца
+  // работы программы (баллы не возвращаются — потраченное должно сыграть). Без wait — только на экране.
+  // Ответ: 'done' — отправлено, 'waiting' — ждёт появления, false — зрителя нет, действие не нужно.
+  act(id, action, params = {}, { wait = false } = {}) {
+    const full = { ...params, seed: params.seed ?? newSeed(this.#opts.rand) };
     const viewer = this.#onScreen.get(id);
-    if (!viewer) return false;
-    this.emit('act', viewer, action, params);
-    return true;
+    if (viewer) {
+      this.emit('act', viewer, action, full);
+      return 'done';
+    }
+    if (!wait) return false;
+    if (!this.#pending.has(id)) this.#pending.set(id, []);
+    this.#pending.get(id).push({ action, params: full });
+    return 'waiting';
+  }
+
+  // Сколько действий ждут появления зрителя.
+  pending(id) {
+    return this.#pending.get(id)?.length ?? 0;
   }
 
   // Рейд: канал-рейдер и число зрителей. Спускаются min(count, raid.maxCount) безымянных героев

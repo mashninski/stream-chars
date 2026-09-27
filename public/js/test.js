@@ -5,6 +5,7 @@ import { connect } from './connection.js';
 const nameInput = document.getElementById('name');
 const textInput = document.getElementById('text');
 const traitSelect = document.getElementById('trait');
+const actSelect = document.getElementById('act');
 const valueBox = document.getElementById('valueBox');
 const channelInput = document.getElementById('channel');
 const raidCount = document.getElementById('raidCount');
@@ -92,6 +93,8 @@ const send = connect(
   (msg) => {
     if (msg.type === 'state') {
       catalog = msg.catalog ?? catalog;
+      const chosenAct = actSelect.value;
+      actSelect.replaceChildren(...(catalog.actions ?? []).map((a) => new Option(a.title, a.id, false, a.id === chosenAct)));
       const chosen = traitSelect.value;
       traitSelect.replaceChildren(
         ...catalog.traits.filter((t) => t.admin).map((t) => new Option(t.title, t.id, false, t.id === chosen)),
@@ -122,7 +125,7 @@ for (const button of document.querySelectorAll('button[data-action]')) {
   button.onclick = () => {
     const name = nameInput.value.trim();
     if (!name) return nameInput.focus();
-    send({ type: 'test', action: button.dataset.action, name, text: textInput.value, trait: traitSelect.value, value: valueInput?.value ?? '' });
+    send({ type: 'test', action: button.dataset.action, name, text: textInput.value, trait: traitSelect.value, value: valueInput?.value ?? '', act: actSelect.value });
   };
 }
 

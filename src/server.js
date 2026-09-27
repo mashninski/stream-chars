@@ -12,6 +12,8 @@ import { log } from './log.js';
 import { readJson } from './files.js';
 import { Settings } from './settings.js';
 import { watchStop, clearStopFile } from './lifecycle.js';
+import { Scenes } from './scenes.js';
+import { Actions } from './actions.js';
 
 const env = readEnv();
 if (env.portGiven && !env.port) {
@@ -27,6 +29,7 @@ const heroesDir = path.join(root, 'heroes');
 const catalog = new Catalog(heroesDir);
 const heroes = new Heroes({ traits: loadTraits(path.join(heroesDir, 'traits.json'), log), catalog, settings });
 const store = new ViewerStore(path.join(env.dataDir, 'viewers.json'), heroes);
+const scenes = await new Scenes(catalog, heroes).load(path.join(root, 'public', 'js', 'scenes'));
 
 const pages = {
   '/overlay': 'overlay.html',
@@ -96,11 +99,12 @@ const wss = new WebSocketServer({
 const viewers = new Viewers(store, heroes, {
   config: () => settings.get(),
 });
+const actions = new Actions({ viewers, store, heroes, scenes, settings });
 
-// Что нужно оверлею из настроек.
+// Что нужно оверлею из настроек: полоса, облако, реакции, правила сцен и список сцен с весами случаев.
 function overlayConfig() {
   const c = settings.get();
-  return { ...c.overlay, bubble: c.bubble };
+  return { ...c.overlay, bubble: c.bubble, reactions: c.reactions, scenes: c.scenes, sceneList: scenes.toClient() };
 }
 
 // Настройки поменялись (админка) — оверлеям новые значения, очередь — по новому лимиту.
@@ -137,11 +141,6 @@ viewers.on('act', (viewer, action, params) => {
   broadcast({ type: 'act', id: viewer.id, action, ...params });
 });
 
-// Сообщение в чате (сейчас — из тестовой панели): действие из "triggers.message" + облако с текстом.
-function chatMessage(id, text) {
-  return viewers.act(id, settings.get().triggers?.message, { text });
-}
-
 // Команды тестовой панели. Тестовый зритель: id «test:<нік у ніжнім рэгістры>».
 function handleTest(msg) {
   if (msg.action === 'raid') {
@@ -158,21 +157,32 @@ function handleTest(msg) {
   if (msg.action === 'leave' && !viewers.leave(id)) log.info(`[test] ${name} няма на экране`);
   if (msg.action === 'message') {
     const text = String(msg.text ?? '').slice(0, 500) || 'тэставае паведамленне';
-    if (!chatMessage(id, text)) log.info(`[test] ${name} няма на экране`);
+    if (!actions.message(id, text)) log.info(`[test] ${name} няма на экране`);
+  }
+  // Любое действие: сцена, спецдействие по весам, смена признака за «баллы», реакция.
+  if (msg.action === 'act') {
+    const res = actions.perform(id, String(msg.act ?? ''), {}, { wait: true });
+    log.info(`[test] ${name}: ${res.text}`);
+  }
+  // Сбросить «первое слово» — чтобы проверить сцену ещё раз.
+  if (msg.action === 'resetFirstWord' && store.get(id)) {
+    store.setFlags(id, { firstWord: false });
+    viewers.setTrait(id, 'nameShown', false);
+    log.info(`[test] ${name}: «першае слова» скінута`);
   }
   if (msg.action === 'trait') {
     const trait = heroes.trait(String(msg.trait ?? ''));
     let value = msg.value === '' ? null : msg.value;
     if (trait?.type === 'bool') value = value === true || value === 'true';
     if (!store.get(id)) log.info(`[test] ${name} яшчэ не з'яўляўся — героя няма`);
-    else if (!viewers.setTrait(id, trait?.id, value)) log.info(`[test] ${name}: «${msg.trait}» = «${msg.value}» — няма такога значэння`);
+    else if (!actions.setTrait(id, trait?.id, value)) log.info(`[test] ${name}: «${msg.trait}» = «${msg.value}» — няма такога значэння`);
     else log.info(`[прыкмета] ${name}: ${trait.title.toLowerCase()} → ${value}`);
   }
 }
 
-// Что нужно клиентам о каталоге: сетка тела, предметы, реестр признаков.
+// Что нужно клиентам о каталоге: сетка тела, предметы, реестр признаков, действия.
 function catalogForClient() {
-  return { ...catalog.toClient(), traits: heroes.toClient() };
+  return { ...catalog.toClient(), traits: heroes.toClient(), actions: actions.list() };
 }
 
 wss.on('connection', (ws) => {
