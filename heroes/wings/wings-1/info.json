@@ -1,8 +1,8 @@
 {
   "title": "Пёркі",
   "anchor": [
-    11,
-    11
+    14,
+    21
   ],
   "animations": {
     "idle": {
@@ -12,6 +12,6 @@
     }
   },
   "image": "sheet.png",
-  "frameWidth": 14,
-  "frameHeight": 14
+  "frameWidth": 34,
+  "frameHeight": 21
 }

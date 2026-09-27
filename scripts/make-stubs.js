@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { encodePng } from '../src/png.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const out = path.join(root, 'heroes');
+// --out <папка> — писать не в heroes/, а в другую папку (проверить результат, не трогая свои файлы).
+const outArg = process.argv.indexOf('--out');
+const out = outArg > 0 ? path.resolve(process.argv[outArg + 1]) : path.join(root, 'heroes');
 const F = 32; // размер кадра тела
 
 // ---------- холст кадра ----------
@@ -506,27 +508,44 @@ for (const [id, [title, weight, draw, [w, h, anchor]]] of Object.entries(HATS)) 
   item('hats', id, { title, weight, anchor }, [[one(w, h, draw)]]);
 }
 
-// Крылья: взмах в два кадра, крепятся к спине (anchor — точка у тела).
+// Крылья: большие, раскрыты влево и вправо от спины (вид как спереди), размах — примерно два героя.
+// Два кадра взмаха: поднятые и опущенные. anchor — середина между крыльями у спины.
 const WINGS = {
-  'wings-1': ['Пёркі', '#f4f4f4', '#c8c8d0', 10],
-  'wings-2': ['Крылы', '#8ec8ff', '#4a8ad6', 14],
-  'wings-3': ['Залатыя крылы', '#ffe070', '#d09a20', 18],
+  'wings-1': ['Пёркі', '#f4f4f4', '#c8c8d0', 14],
+  'wings-2': ['Крылы', '#8ec8ff', '#4a8ad6', 17],
+  'wings-3': ['Залатыя крылы', '#ffe070', '#d09a20', 20],
 };
-for (const [id, [title, light, dark, size]] of Object.entries(WINGS)) {
-  const w = size + 4, h = size + 4;
+for (const [id, [title, light, dark, span]] of Object.entries(WINGS)) {
+  const gap = 4; // между крыльями — место для тела
+  const w = span * 2 + gap + 2, h = Math.round(span * 1.2) + 4;
+  const cx = Math.floor(w / 2);
+  const shoulder = h - 2 - Math.round(span * 0.15); // где крыло крепится к спине
   const frames = [0, 1].map((flap) =>
     one(w, h, (f) => {
-      // Крыло — овал назад (влево) и вверх от точки у спины (справа внизу); перья — тёмные полосы.
-      for (let i = 0; i < size; i++) {
-        const k = Math.sin((Math.PI * (i + 1)) / (size + 1));
-        const len = Math.round(size * k * (flap ? 0.65 : 0.95));
-        const y = h - 3 - Math.round(i * (flap ? 0.7 : 1));
-        f.rect(w - 3 - len, y, w - 3, y, light);
-        if (i % 3 === 1) f.rect(w - 3 - len, y, w - 3 - Math.round(len * 0.4), y, dark);
+      const lift = flap ? 0.7 : 1; // опущенные — положе
+      for (let u = 0; u < span; u++) {
+        const k = (u + 1) / span; // 0 у спины … 1 на конце
+        // Крыло — полоса вверх и в сторону: верх поднимается к острому концу,
+        // низ (маховые перья) — тоже, но круче; у спины крыло толще.
+        const top = shoulder - Math.round(span * lift * (0.25 + 0.75 * Math.pow(k, 0.6)));
+        const tip = k > 0.9 ? Math.round((k - 0.9) * 10 * 2) : 0; // конец сужается
+        const scallop = u % 3 === 2 ? 2 : u % 3 === 1 ? 1 : 0; // зубцы перьев
+        const bottom = shoulder + Math.round(span * 0.15) - Math.round(span * lift * 0.85 * Math.pow(k, 1.4)) - scallop - tip;
+        for (const side of [-1, 1]) {
+          const x = cx + side * (Math.floor(gap / 2) + u) + (side < 0 ? -1 : 0);
+          const band = bottom - top;
+          for (let y = Math.max(1, top); y <= bottom; y++) {
+            // Верхние 40% — кроющие перья (светлые, верхний край — блик), ниже — маховые со стыками.
+            const cover = y < top + Math.max(2, Math.round(band * 0.4));
+            const seam = !cover && u % 3 === 0 && y > top + 1;
+            f.set(x, y, seam ? dark : y === top ? '#ffffff' : light);
+          }
+        }
       }
     }),
   );
-  item('wings', id, { title, anchor: [w - 3, h - 3], animations: { idle: { row: 0, frames: 2, fps: 3 } } }, [frames]);
+  // Точка спины у тела — за серединой, ближе к затылку: сдвиг, чтобы крылья стояли над плечами по центру.
+  item('wings', id, { title, anchor: [cx - 3, shoulder + 4], animations: { idle: { row: 0, frames: 2, fps: 3 } } }, [frames]);
 }
 
 // Реквизит. anchor — где его держит рука (или низ-середина, если стоит на земле).
