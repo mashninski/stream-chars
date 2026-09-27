@@ -14,6 +14,7 @@ import { Settings } from './settings.js';
 import { watchStop, clearStopFile } from './lifecycle.js';
 import { Scenes } from './scenes.js';
 import { Actions } from './actions.js';
+import { Admin } from './admin.js';
 
 const env = readEnv();
 if (env.portGiven && !env.port) {
@@ -34,10 +35,14 @@ const scenes = await new Scenes(catalog, heroes).load(path.join(root, 'public', 
 const pages = {
   '/overlay': 'overlay.html',
   '/test': 'test.html',
+  '/admin': 'admin.html',
+  '/admin/viewers': 'viewers.html',
+  '/admin/weights': 'weights.html',
 };
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
 };
 
 // Отдаём только файлы из public/: путь вне папки — 404.
@@ -78,11 +83,12 @@ function notFound(res) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/') {
-    res.writeHead(302, { Location: '/test' });
+    res.writeHead(302, { Location: '/admin' });
     return res.end();
   }
   if (pages[url.pathname]) return sendFile(res, pages[url.pathname]);
   if (url.pathname.startsWith('/js/')) return sendFile(res, url.pathname.slice(1));
+  if (url.pathname === '/admin.css') return sendFile(res, 'admin.css');
   if (url.pathname.startsWith('/heroes/')) return sendCatalogFile(res, url.pathname);
   notFound(res);
 });
@@ -100,6 +106,32 @@ const viewers = new Viewers(store, heroes, {
   config: () => settings.get(),
 });
 const actions = new Actions({ viewers, store, heroes, scenes, settings });
+const startedAt = Date.now();
+const admin = new Admin({ settings, store, viewers, heroes, scenes, actions, log });
+const clientsOf = (role) => [...wss.clients].filter((c) => c.role === role && c.readyState === c.OPEN);
+admin.status('program', () => {
+  const min = Math.floor((Date.now() - startedAt) / 60000);
+  return { title: 'Праграма', text: `працуе ${min < 60 ? `${min} хв` : `${Math.floor(min / 60)} г ${min % 60} хв`}, порт ${port}`, ok: true };
+});
+admin.status('overlay', () => {
+  const n = clientsOf('overlay').length;
+  return { title: 'Аверлэй (OBS)', text: n ? `падлучаных: ${n}` : 'не падлучаны — дадайце аверлэй у сцэну', ok: n > 0 };
+});
+admin.status('viewers', () => ({ title: 'Гледачы', text: `на экране ${viewers.list().filter((v) => !v.raider).length}, у чарзе ${viewers.queue().length}, усяго герояў ${store.all().length}`, ok: true }));
+
+function sendTo(ws, msg) {
+  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+}
+function broadcastAdmin(msg) {
+  const data = JSON.stringify(msg);
+  for (const c of clientsOf('admin')) c.send(data);
+}
+// Строка окна «Персанажы» поменялась.
+function adminViewer(id) {
+  const row = admin.row(id);
+  if (row) broadcastAdmin({ type: 'viewer', row });
+}
+log.on('line', (line) => broadcastAdmin({ type: 'log', line }));
 
 // Что нужно оверлею из настроек: полоса, облако, реакции, правила сцен и список сцен с весами случаев.
 function overlayConfig() {
@@ -110,6 +142,7 @@ function overlayConfig() {
 // Настройки поменялись (админка) — оверлеям новые значения, очередь — по новому лимиту.
 settings.on('change', () => {
   broadcast({ type: 'config', config: overlayConfig() });
+  broadcastAdmin({ type: 'settings', settings: settings.get() });
   viewers.refresh();
 });
 
@@ -124,17 +157,21 @@ viewers.on('join', (viewer, entrance) => {
   // Рейдеров много и с одним ником — в журнал одной строкой на весь рейд (см. handleTest).
   if (!viewer.raider) log.info(`[join] ${viewer.name} (${viewer.traits.class ?? 'без класа'}, з'яўленне: ${entrance})`);
   broadcast({ type: 'join', viewer, entrance });
+  if (!viewer.raider) adminViewer(viewer.id);
 });
 viewers.on('leave', (viewer) => {
   if (!viewer.raider) log.info(`[leave] ${viewer.name}`);
   broadcast({ type: 'leave', id: viewer.id });
+  if (!viewer.raider) adminViewer(viewer.id);
 });
 viewers.on('queue', (queue) => {
   log.info(`[чарга] ${queue.length ? queue.map((v) => v.name).join(', ') : 'пустая'}`);
   broadcast({ type: 'queue', queue });
+  for (const v of queue) adminViewer(v.id);
 });
 viewers.on('traits', (viewer) => {
   broadcast({ type: 'traits', id: viewer.id, traits: viewer.traits });
+  adminViewer(viewer.id);
 });
 viewers.on('act', (viewer, action, params) => {
   log.info(`[act] ${viewer.name}: ${action}${params.text ? ` «${params.text}»` : ''}`);
@@ -185,22 +222,36 @@ function catalogForClient() {
   return { ...catalog.toClient(), traits: heroes.toClient(), actions: actions.list() };
 }
 
-wss.on('connection', (ws) => {
-  log.info(`[ws] падлучыўся кліент, усяго ${wss.clients.size}`);
+// Роль клиента — из адреса: /ws?role=overlay|test|admin. Админке — ещё состояние и живой журнал.
+const ROLES = new Set(['overlay', 'test', 'admin']);
+wss.on('connection', (ws, req) => {
+  const role = new URL(req.url, 'http://localhost').searchParams.get('role');
+  ws.role = ROLES.has(role) ? role : 'overlay';
+  log.info(`[ws] падлучыўся кліент (${ws.role}), усяго ${wss.clients.size}`);
   // Новому клиенту (или перезагруженному оверлею) — настройки, каталог героев и текущий список.
-  ws.send(JSON.stringify({ type: 'state', config: overlayConfig(), catalog: catalogForClient(), viewers: viewers.list(), queue: viewers.queue() }));
+  sendTo(ws, { type: 'state', config: overlayConfig(), catalog: catalogForClient(), viewers: viewers.list(), queue: viewers.queue() });
+  if (ws.role === 'admin') sendTo(ws, { type: 'admin-state', ...admin.state() });
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     let msg;
     try {
       msg = JSON.parse(data);
     } catch {
       return;
     }
-    if (msg.type === 'test') handleTest(msg);
+    // Команды меняют данные — только от тестовой панели и админки, не от оверлея.
+    if (msg.type === 'test' && ws.role !== 'overlay') handleTest(msg);
+    if (msg.type === 'admin' && ws.role === 'admin') {
+      const reply = await admin.handle(msg);
+      sendTo(ws, { type: 'admin-reply', id: msg.id, ...reply });
+      if (reply.ok) broadcastAdmin({ type: 'status', status: admin.statusLines() });
+    }
   });
   ws.on('close', () => log.info(`[ws] кліент адлучыўся, засталося ${wss.clients.size}`));
 });
+
+// Состояние в админке — раз в 10 с (время работы, подключения).
+setInterval(() => broadcastAdmin({ type: 'status', status: admin.statusLines() }), 10000).unref();
 
 // WebSocketServer повторяет ошибки HTTP-сервера; разбираем их один раз — ниже, у server.
 wss.on('error', () => {});
@@ -233,6 +284,7 @@ server.listen(port, '127.0.0.1', () => {
   watchStop({ dataDir: env.dataDir, parentPid: env.parentPid, onStop: shutdown });
   log.info('Праграма запушчана.');
   log.info(`  Аверлэй для OBS:  http://localhost:${port}/overlay`);
+  log.info(`  Адмін-панэль:     http://localhost:${port}/admin`);
   log.info(`  Тэставая панэль:  http://localhost:${port}/test`);
   log.info(`  Папка даных:      ${env.dataDir}`);
   if (env.parentPid) log.info(`  Спыніцца разам з працэсам ${env.parentPid}.`);

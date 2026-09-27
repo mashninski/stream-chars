@@ -26,6 +26,11 @@ const LIMITS = {
   'twitch.leaveAfterPolls': [1, 100],
 };
 
+// Строки с выбором из списка: путь → допустимые значения.
+const ENUMS = {
+  rewardMode: ['auto', 'manual'],
+};
+
 // Разделы, где ключи заводит сам пользователь (у config.json там пусто или примеры): путь → тип значений.
 // weights — веса редкости по категориям ({ категория: { значение: вес } }), числа от 0;
 // rewardLinks — ручная связь «название награды → действие», строки.
@@ -90,6 +95,7 @@ function checkValue(pathStr, value, sample) {
     if (value < min || value > max) return `«${pathStr}»: трэба ад ${min}${max < Infinity ? ` да ${max}` : ''}`;
   }
   if (typeof value === 'string' && value.length > 2000) return `«${pathStr}»: занадта доўгі радок`;
+  if (ENUMS[pathStr] && !ENUMS[pathStr].includes(value)) return `«${pathStr}»: адно з ${ENUMS[pathStr].join(', ')}`;
   return null;
 }
 

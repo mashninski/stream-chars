@@ -119,6 +119,7 @@ const send = connect(
     status.textContent = online ? 'Праграма падлучана' : 'Няма злучэння з праграмай';
     status.className = online ? '' : 'off';
   },
+  'test',
 );
 
 for (const button of document.querySelectorAll('button[data-action]')) {

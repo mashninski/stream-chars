@@ -1,9 +1,10 @@
 // Подключение к программе по WebSocket с переподключением: программу перезапустили —
 // страница сама подключится снова и получит текущий список.
-export function connect(onMessage, onStatus = () => {}) {
+// role — кто подключается: overlay (оверлей), test (тестовая панель), admin (админка и её окна).
+export function connect(onMessage, onStatus = () => {}, role = 'overlay') {
   let ws;
   const open = () => {
-    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws = new WebSocket(`ws://${location.host}/ws?role=${role}`);
     ws.onopen = () => onStatus(true);
     ws.onmessage = (e) => onMessage(JSON.parse(e.data));
     ws.onclose = () => {

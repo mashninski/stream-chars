@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="be">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stream-chars — адмінка</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<h1>stream-chars <span id="conn" class="off">падлучэнне…</span></h1>
+
+<details id="sec-status" open>
+  <summary>Стан</summary>
+  <div class="body" id="status"></div>
+</details>
+
+<details id="sec-twitch">
+  <summary>Twitch</summary>
+  <div class="body" id="twitch"></div>
+</details>
+
+<details id="sec-settings">
+  <summary>Налады</summary>
+  <div class="body" id="settings"></div>
+</details>
+
+<details id="sec-rewards">
+  <summary>Узнагароды</summary>
+  <div class="body" id="rewards"></div>
+</details>
+
+<details id="sec-test">
+  <summary>Праверка</summary>
+  <div class="body" id="test"></div>
+</details>
+
+<details id="sec-log">
+  <summary>Журнал</summary>
+  <div class="body"><div id="log"></div></div>
+</details>
+
+<div class="windows">
+  <button id="open-viewers">Персанажы</button>
+  <button id="open-weights">Рэдкасць</button>
+</div>
+<div class="hint" id="window-hint"></div>
+<script type="module" src="/js/admin.js"></script>
+</body>
+</html>
